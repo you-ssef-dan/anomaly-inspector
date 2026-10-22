@@ -1,0 +1,30 @@
+repos:
+  # Lint and format Python with the same ruff version as pyproject.toml
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Generic file hygiene; large files belong in DVC, not git
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1001]
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Strip notebook outputs so diffs stay small and readable
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      - id: nbstripout
+
+  # Block commits that contain secrets (API keys, passwords, tokens)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
