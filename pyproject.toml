@@ -87,6 +87,7 @@ dev = [
     "httpx>=0.28.1",
     "hypothesis>=6.170.5",
     "mypy>=2.4.0",
+    "pandas-stubs>=3.0.5.260914",
     "pre-commit>=4.7.0",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
