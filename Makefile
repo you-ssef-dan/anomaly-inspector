@@ -1,4 +1,4 @@
-.PHONY: setup lint test check
+.PHONY: setup lint test test-slow bench check
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -8,4 +8,14 @@ lint:
 	uv run mypy src
 test:
 	uv run pytest -m "not slow and not integration"
+test-slow:
+	uv run pytest -m slow --no-cov
+# One process per run releases the feature bank in between. Close other apps first: each run
+# needs about 3 GB of RAM for bottle and more for carpet and screw.
+bench:
+	for c in bottle carpet screw; do \
+		for impl in ours anomalib-v1; do \
+			uv run python scripts/benchmark_anomalib.py --category $$c --impl $$impl || exit 1; \
+		done; \
+	done
 check: lint test
