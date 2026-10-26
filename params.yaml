@@ -1,0 +1,6 @@
+data:
+  root: data/raw/mvtec_ad
+  categories: [bottle, carpet, screw]
+  image_size: 256
+  val_normal_fraction: 0.1
+  seed: 42

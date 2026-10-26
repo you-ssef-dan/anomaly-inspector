@@ -1,3 +1,8 @@
 # Add patterns of files dvc should ignore, which could improve
 # the performance. Learn more at
 # https://dvc.org/doc/user-guide/dvcignore
+
+# Python writes these next to the code; git does not ship them, so a clean clone
+# would hash differently from this machine and re-run every stage.
+__pycache__/
+*.pyc

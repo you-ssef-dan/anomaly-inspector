@@ -1,0 +1,52 @@
+{
+  "images": 1007,
+  "per_category": {
+    "bottle": 250,
+    "carpet": 341,
+    "screw": 416
+  },
+  "per_category_defect_type": {
+    "bottle": {
+      "broken_large": 20,
+      "broken_small": 22,
+      "contamination": 21,
+      "good": 187
+    },
+    "carpet": {
+      "color": 19,
+      "cut": 17,
+      "good": 252,
+      "hole": 17,
+      "metal_contamination": 17,
+      "thread": 19
+    },
+    "screw": {
+      "good": 297,
+      "manipulated_front": 24,
+      "scratch_head": 24,
+      "scratch_neck": 25,
+      "thread_side": 23,
+      "thread_top": 23
+    }
+  },
+  "per_category_split": {
+    "bottle": {
+      "calib": 41,
+      "holdout": 42,
+      "train": 150,
+      "val_normal": 17
+    },
+    "carpet": {
+      "calib": 58,
+      "holdout": 59,
+      "train": 201,
+      "val_normal": 23
+    },
+    "screw": {
+      "calib": 80,
+      "holdout": 80,
+      "train": 230,
+      "val_normal": 26
+    }
+  }
+}

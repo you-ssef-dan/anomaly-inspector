@@ -1,0 +1,15 @@
+stages:
+  prepare:
+    cmd: python -m anomaly_inspector.pipelines.prepare
+    deps:
+      - data/raw/mvtec_ad
+      - src/anomaly_inspector/config.py
+      - src/anomaly_inspector/data
+      - src/anomaly_inspector/pipelines/prepare.py
+    params:
+      - data
+    outs:
+      - data/processed/manifest.parquet
+    metrics:
+      - reports/data_summary.json:
+          cache: false

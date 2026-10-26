@@ -1,0 +1,43 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python -m anomaly_inspector.pipelines.prepare
+    deps:
+    - path: data/raw/mvtec_ad
+      hash: md5
+      md5: 833095ad5b79ed82cfa3de8c579a1ea9.dir
+      size: 940177204
+      nfiles: 1286
+    - path: src/anomaly_inspector/config.py
+      hash: md5
+      md5: 61061695ef8d5623f8e904dac9ad1f0c
+      size: 533
+    - path: src/anomaly_inspector/data
+      hash: md5
+      md5: f5609e0b1a8f0bf79dc209bfd406f179.dir
+      size: 4326
+      nfiles: 4
+    - path: src/anomaly_inspector/pipelines/prepare.py
+      hash: md5
+      md5: cb35a6faa12efbfe8bd832fa578173ae
+      size: 2303
+    params:
+      params.yaml:
+        data:
+          root: data/raw/mvtec_ad
+          categories:
+          - bottle
+          - carpet
+          - screw
+          image_size: 256
+          val_normal_fraction: 0.1
+          seed: 42
+    outs:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 9b6ab4999e1f04ef99132d487a0ca50c
+      size: 57469
+    - path: reports/data_summary.json
+      hash: md5
+      md5: 968e572868ef195302e9fadbcebca016
+      size: 924
