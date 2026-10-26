@@ -10,13 +10,20 @@ stages:
       nfiles: 1286
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 61061695ef8d5623f8e904dac9ad1f0c
-      size: 533
-    - path: src/anomaly_inspector/data
+      md5: ce50e5232fc83d41c921839363da0b23
+      size: 1174
+    - path: src/anomaly_inspector/data/manifest.py
       hash: md5
-      md5: f5609e0b1a8f0bf79dc209bfd406f179.dir
-      size: 4326
-      nfiles: 4
+      md5: a1b2aab466924496f291d53c82c62e79
+      size: 1649
+    - path: src/anomaly_inspector/data/splits.py
+      hash: md5
+      md5: acd269516009821cd647cbc6be9ed76c
+      size: 1116
+    - path: src/anomaly_inspector/data/validation.py
+      hash: md5
+      md5: 206c793028bcc006a624f6b1a3ba9380
+      size: 1561
     - path: src/anomaly_inspector/pipelines/prepare.py
       hash: md5
       md5: cb35a6faa12efbfe8bd832fa578173ae
