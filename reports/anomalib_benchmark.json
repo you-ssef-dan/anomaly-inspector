@@ -1,0 +1,65 @@
+{
+  "bottle/anomalib-v1-k1": {
+    "aupro": 0.9408703313207084,
+    "category": "bottle",
+    "fit_seconds": 62.42473404298653,
+    "image_auroc": 1.0,
+    "impl": "anomalib-v1",
+    "ms_per_image": 184.38551869875954,
+    "peak_ram_mb": 2824.0390625,
+    "pixel_auroc": 0.9868986317037789,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 1,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 83,
+    "train_images": 150
+  },
+  "bottle/anomalib-v1-k9": {
+    "aupro": 0.94166252531023,
+    "category": "bottle",
+    "fit_seconds": 64.10641677098465,
+    "image_auroc": 1.0,
+    "impl": "anomalib-v1",
+    "ms_per_image": 173.1382088913829,
+    "peak_ram_mb": 2826.55078125,
+    "pixel_auroc": 0.9868118492950249,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 9,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 83,
+    "train_images": 150
+  },
+  "bottle/ours": {
+    "aupro": 0.9413482308402751,
+    "category": "bottle",
+    "fit_seconds": 54.08726341999136,
+    "image_auroc": 1.0,
+    "impl": "ours",
+    "ms_per_image": 202.1256421446514,
+    "peak_ram_mb": 2824.75390625,
+    "pixel_auroc": 0.9865965756477427,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": null,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 83,
+    "train_images": 150
+  }
+}
