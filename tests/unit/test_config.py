@@ -22,6 +22,7 @@ def test_repo_params_file_is_valid() -> None:
     params = load_params(REPO_ROOT / "params.yaml")
     assert params.data.root == Path("data/raw/mvtec_ad")
     assert params.data.categories == ["bottle", "carpet", "screw"]
+    assert params.stfpm.epochs == 100
 
 
 def test_defaults_fill_missing_values(tmp_path: Path) -> None:
@@ -29,6 +30,22 @@ def test_defaults_fill_missing_values(tmp_path: Path) -> None:
     assert params.data.image_size == 256
     assert params.data.val_normal_fraction == 0.1
     assert params.data.seed == 42
+
+
+def test_stfpm_defaults_are_the_papers_settings(tmp_path: Path) -> None:
+    stfpm = load_params(write_params(tmp_path, MINIMAL)).stfpm  # section left out entirely
+    assert (stfpm.epochs, stfpm.lr, stfpm.batch_size) == (100, 0.4, 32)
+    assert (stfpm.momentum, stfpm.weight_decay, stfpm.patience) == (0.9, 1e-4, 10)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("epochs", 0), ("lr", 0), ("batch_size", 0), ("momentum", 1.0), ("patience", 0)],
+)
+def test_impossible_stfpm_settings_are_rejected(tmp_path: Path, key: str, value: float) -> None:
+    content = deepcopy(MINIMAL) | {"stfpm": {key: value}}
+    with pytest.raises(ValidationError, match=key):
+        load_params(write_params(tmp_path, content))
 
 
 def test_unknown_key_is_rejected(tmp_path: Path) -> None:

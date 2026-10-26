@@ -67,6 +67,9 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "PT", "NPY", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+plugins = ["pydantic.mypy"]  # teaches mypy that Field(100, ...) is a default value
+# Some Tensor methods (backward, split) have no annotations yet; calling them is still allowed.
+untyped_calls_exclude = ["torch"]
 
 [[tool.mypy.overrides]]
 module = ["torchvision.*", "timm.*", "scipy.*", "sklearn.*", "mlflow.*", "onnxruntime.*"]

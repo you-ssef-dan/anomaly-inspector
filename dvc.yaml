@@ -4,7 +4,10 @@ stages:
     deps:
       - data/raw/mvtec_ad
       - src/anomaly_inspector/config.py
-      - src/anomaly_inspector/data
+      # only the modules prepare imports: adding dataset.py must not re-run this stage
+      - src/anomaly_inspector/data/manifest.py
+      - src/anomaly_inspector/data/splits.py
+      - src/anomaly_inspector/data/validation.py
       - src/anomaly_inspector/pipelines/prepare.py
     params:
       - data
