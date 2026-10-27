@@ -8,6 +8,11 @@ __pycache__/
 
 guides/
 
+# MLflow without a server writes here; runs belong on the server (make mlflow-up)
+mlflow.db
+mlruns/
+
+
 # Distribution / packaging
 .Python
 build/

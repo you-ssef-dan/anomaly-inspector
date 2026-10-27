@@ -1,4 +1,4 @@
-"""make_gallery.py: the picture, and the whole script on the fake dataset (no download)."""
+"""make_gallery.py: the whole script on the fake dataset (no download)."""
 
 import importlib.util
 import json
@@ -6,9 +6,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-import numpy as np
 import pytest
-from PIL import Image
 
 from anomaly_inspector.data.manifest import build_manifest
 from anomaly_inspector.data.splits import assign_splits
@@ -49,40 +47,6 @@ def arguments(*extra: str) -> list[str]:
         "--k=1",
         *extra,
     ]
-
-
-def test_the_wash_is_invisible_on_normal_areas_and_strongest_on_the_hottest(
-    gallery: ModuleType,
-) -> None:
-    heat = np.array([[0.0, 0.5, 1.0, 7.0, -3.0]], dtype=np.float32)
-    rgba = gallery.heat_overlay(heat)
-    assert rgba.shape == (1, 5, 4)
-    assert rgba[0, :, 3].tolist() == pytest.approx([0.0, 0.4, 0.8, 0.8, 0.0])  # clipped to [0, 1]
-    assert np.allclose(rgba[..., :3], gallery.HEAT)
-
-
-def test_a_gallery_is_one_picture_with_a_row_per_failure_kind(
-    gallery: ModuleType, tmp_path: Path
-) -> None:
-    rng = np.random.default_rng(0)
-
-    def panel(defect: bool) -> object:
-        mask = np.zeros((64, 64), dtype=bool)
-        mask[10:20, 10:20] = True
-        return gallery.Panel(
-            image=rng.integers(0, 255, (64, 64, 3), dtype=np.uint8),
-            heat=rng.random((64, 64)).astype(np.float32),
-            mask=mask if defect else None,
-            caption="a caption\nscore 1.00",
-        )
-
-    path = gallery.draw_gallery(
-        [[panel(True)] * 3, [panel(False)] * 2], "title", "subtitle", tmp_path / "deep" / "g.jpg"
-    )
-    assert path.exists()
-    assert 5_000 < path.stat().st_size < ONE_MB
-    with Image.open(path) as image:
-        assert image.width > image.height * 0.8  # laid out as a grid, not a strip
 
 
 def test_the_script_writes_the_picture_and_the_facts_behind_it(

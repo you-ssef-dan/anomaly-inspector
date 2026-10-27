@@ -29,8 +29,25 @@ class StfpmConfig(Strict):
     seed: int = 42
 
 
+class PatchcoreConfig(Strict):
+    # The Phase 2 baseline: WideResNet-50 features, a memory bank of 1% of the patches.
+    backbone: str = "wide_resnet50_2"
+    coreset_ratio: float = Field(0.01, gt=0, le=1)
+    seed: int = 42
+
+
+class ThresholdConfig(Strict):
+    # A missed defect costs 10 times a false reject: an assumption, written in the README.
+    miss_cost: float = Field(10, gt=0)
+    false_reject_cost: float = Field(1, gt=0)
+    # Good-parts-only threshold: the score that 99% of the val_normal parts stay below.
+    normal_quantile: float = Field(0.99, gt=0, lt=1)
+
+
 class Params(Strict):
     data: DataConfig
+    patchcore: PatchcoreConfig = PatchcoreConfig()
+    threshold: ThresholdConfig = ThresholdConfig()
     stfpm: StfpmConfig = StfpmConfig()
 
 
