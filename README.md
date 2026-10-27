@@ -40,9 +40,45 @@ given the same ImageNet weights, so the only difference is the algorithm code.
 
 - **AUPRO** counts every defect region equally, however small, so it is the metric that cares about
   tiny defects. Here it agrees with anomalib's AUPRO to 5 decimals (a slow test checks it).
-- Bottle is the easy category. Carpet and screw (tiny defects, rotating parts) are next.
+- Bottle is the easy category. Screw (tiny defects, parts at any angle) is the hard one, see below.
 - Full numbers: [`reports/anomalib_benchmark.json`](reports/anomalib_benchmark.json). The data and
   its limits are described in the [data card](docs/data_card.md).
+
+## What changes the result
+
+18 experiments per category, each changing one setting of the PatchCore baseline (WideResNet-50,
+256 px, 1% memory bank), plus one combination of two changes. Scored on the `calib` split, so
+`holdout` stays untouched.
+
+| Question | Bottle (easy) | Screw (hard) |
+| --- | --- | --- |
+| **How much does a smaller memory bank cost?** | Almost nothing: 100× smaller, AUPRO 0.944 → 0.934 | A lot: AUPRO 0.916 → 0.865 → **0.546** at 10% / 1% / 0.1% |
+| **How many good parts does a new line need?** | One image already gives image AUROC 0.99 | About **50**, at different angles |
+| **What does a faster backbone cost?** | AUPRO −0.008, **5× faster** | Nothing measurable, **2.5× faster** |
+| **Do small defects need more resolution?** | A little: AUPRO 0.942 → 0.953 | **Yes**: AUPRO 0.865 → **0.941** |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/experiment_size_dark.png">
+  <img alt="Image size against AUPRO, image AUROC and latency" src="reports/figures/experiment_size_light.png">
+</picture>
+
+The two cheap wins together, **ResNet-18 at 320 px**, give screw an AUPRO of **0.962** (baseline
+0.865) at **38 ms per image** (baseline 169). It was picked after looking at `calib`, so it still has
+to be confirmed on `holdout`. All findings and their limits: [`docs/experiments.md`](docs/experiments.md).
+
+## Where it still fails
+
+Screw, the four defects PatchCore comes closest to missing (top) and the four good parts it comes
+closest to rejecting (bottom). The white outline is the real defect, the orange wash is the model's
+map.
+
+![Screw heatmap gallery](reports/gallery/screw.jpg)
+
+- The missed screw defects are tiny (0.12 to 0.24% of the image) and the map's peak is **not** on
+  them, which is why more resolution helps.
+- Bottle has no real failure; carpet's misses are thin threads that score like good weave.
+- Every panel is explained in [`reports/failure_notes.md`](reports/failure_notes.md), with guesses
+  marked as guesses.
 
 ## Quick start
 
@@ -79,11 +115,11 @@ src/anomaly_inspector/
   training/          STFPM training loop (seeded, early stopping, best checkpoint)
   evaluation/        image AUROC, pixel AUROC, AUPRO, and the scoring helpers
   pipelines/         one entry point per DVC stage (prepare so far)
-scripts/             benchmark vs anomalib, simulation pool, experiment runner
+scripts/             benchmark vs anomalib, simulation pool, experiments and charts, gallery
 tests/               unit tests on generated fake data, plus a few slow ones
 notebooks/           exploratory data analysis (no outputs stored in git)
-docs/                data card
-reports/             metrics written by the pipeline and the benchmarks
+docs/                data card, experiment findings
+reports/             benchmark and experiment results, charts, heatmap gallery, failure notes
 params.yaml          every tunable value, validated at load time
 dvc.yaml             the data pipeline
 ```
