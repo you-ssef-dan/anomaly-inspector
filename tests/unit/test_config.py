@@ -48,6 +48,24 @@ def test_impossible_stfpm_settings_are_rejected(tmp_path: Path, key: str, value:
         load_params(write_params(tmp_path, content))
 
 
+def test_the_threshold_defaults_are_a_10_to_1_cost_and_the_99th_percentile(
+    tmp_path: Path,
+) -> None:
+    threshold = load_params(write_params(tmp_path, MINIMAL)).threshold
+    assert (threshold.miss_cost, threshold.false_reject_cost) == (10, 1)
+    assert threshold.normal_quantile == 0.99
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("miss_cost", 0), ("false_reject_cost", -1), ("normal_quantile", 1.0)],
+)
+def test_impossible_threshold_settings_are_rejected(tmp_path: Path, key: str, value: float) -> None:
+    content = deepcopy(MINIMAL) | {"threshold": {key: value}}
+    with pytest.raises(ValidationError, match=key):
+        load_params(write_params(tmp_path, content))
+
+
 def test_unknown_key_is_rejected(tmp_path: Path) -> None:
     content = deepcopy(MINIMAL)
     content["data"]["image_sise"] = 256  # typo for image_size
