@@ -96,3 +96,10 @@ def test_params_are_frozen(tmp_path: Path) -> None:
     params = load_params(write_params(tmp_path, MINIMAL))
     with pytest.raises(ValidationError):
         params.data.seed = 0
+
+
+def test_the_promotion_defaults_are_a_200_ms_budget_and_a_small_aupro_tolerance(
+    tmp_path: Path,
+) -> None:
+    promotion = load_params(write_params(tmp_path, MINIMAL)).promotion
+    assert (promotion.latency_budget_ms, promotion.aupro_tolerance) == (200, 0.005)

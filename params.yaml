@@ -12,6 +12,9 @@ threshold:
   miss_cost: 10
   false_reject_cost: 1
   normal_quantile: 0.99
+promotion:
+  latency_budget_ms: 200
+  aupro_tolerance: 0.005
 stfpm:
   epochs: 100
   lr: 0.4

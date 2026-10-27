@@ -5,7 +5,8 @@ Run it from the repo root, with the MLflow server up (make mlflow-up):
   uv run --env-file .env python scripts/train_patchcore.py --category bottle
 
 The run gets the holdout metrics, threshold.json, the ROC and PRO curves, the failure gallery,
-and the model itself, registered as a new version of patchcore-<category>.
+and the model itself, registered as a new version of patchcore-<category>. That version becomes
+the challenger, and the champion too if registry.should_promote accepts it.
 """
 
 import argparse
@@ -18,6 +19,7 @@ import mlflow.pytorch
 import numpy as np
 import pandas as pd
 import torch
+from mlflow import MlflowClient
 from torch.utils.data import DataLoader
 
 from anomaly_inspector.config import load_params
@@ -28,6 +30,7 @@ from anomaly_inspector.evaluation.plots import pro_figure, roc_figure
 from anomaly_inspector.evaluation.thresholds import cost_threshold, normal_threshold
 from anomaly_inspector.models.backbones import build_backbone
 from anomaly_inspector.models.patchcore import PatchCore
+from anomaly_inspector.registry import promote
 from anomaly_inspector.tracking import start_run
 
 # The table of every image, with its category, split and label (built by `dvc repro`).
@@ -131,12 +134,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         # 5. The model, registered as a new version of patchcore-<category>. "pickle" because
         # MLflow's default "pt2" format cannot save a model that returns two tensors (map,
         # score). Loading it needs this package installed. From Phase 5 we log ONNX instead.
-        mlflow.pytorch.log_model(
-            model,
-            name="model",
-            registered_model_name=f"patchcore-{args.category}",
-            serialization_format="pickle",
+        name = f"patchcore-{args.category}"
+        info = mlflow.pytorch.log_model(
+            model, name="model", registered_model_name=name, serialization_format="pickle"
         )
+
+        # 6. The new version is the challenger; tested rules decide if it becomes champion.
+        version = str(info.registered_model_version)
+        promoted = promote(MlflowClient(), name, version, params.promotion)
+        print(f"{name} version {version}: {'champion' if promoted else 'challenger only'}")
 
 
 if __name__ == "__main__":
