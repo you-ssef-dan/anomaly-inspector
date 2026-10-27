@@ -29,8 +29,16 @@ class StfpmConfig(Strict):
     seed: int = 42
 
 
+class PatchcoreConfig(Strict):
+    # The Phase 2 baseline: WideResNet-50 features, a memory bank of 1% of the patches.
+    backbone: str = "wide_resnet50_2"
+    coreset_ratio: float = Field(0.01, gt=0, le=1)
+    seed: int = 42
+
+
 class Params(Strict):
     data: DataConfig
+    patchcore: PatchcoreConfig = PatchcoreConfig()
     stfpm: StfpmConfig = StfpmConfig()
 
 

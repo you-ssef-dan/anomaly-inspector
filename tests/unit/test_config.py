@@ -57,9 +57,9 @@ def test_unknown_key_is_rejected(tmp_path: Path) -> None:
 
 def test_section_without_a_model_is_rejected(tmp_path: Path) -> None:
     content = deepcopy(MINIMAL)
-    # Phase 2 adds this section together with its class
-    content["patchcore"] = {"coreset_ratio": 0.01}
-    with pytest.raises(ValidationError, match="patchcore"):
+    # Phase 5 adds this section together with its class
+    content["onnx"] = {"opset": 18}
+    with pytest.raises(ValidationError, match="onnx"):
         load_params(write_params(tmp_path, content))
 
 
