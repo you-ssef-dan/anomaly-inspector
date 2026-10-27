@@ -1,0 +1,762 @@
+{
+  "bottle/backbone/resnet18": {
+    "aupro": 0.93439881188699,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 44.46065723098582,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 2.359296,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 29.747870270157144,
+    "peak_ram_mb": 1284.24609375,
+    "pixel_auroc": 0.982518420942839,
+    "settings": {
+      "backbone": "resnet18",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "bottle/baseline": {
+    "aupro": 0.9419245207976218,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 66.56317139300518,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 146.77737156076856,
+    "peak_ram_mb": 2689.25390625,
+    "pixel_auroc": 0.9869832667956815,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "bottle/combo/resnet18-320": {
+    "aupro": 0.9484964405479428,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 69.21178411101573,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 3.6864,
+    "memory_bank_rows": 2400,
+    "ms_per_image": 37.22865851212679,
+    "peak_ram_mb": 1687.234375,
+    "pixel_auroc": 0.9848918596250373,
+    "settings": {
+      "backbone": "resnet18",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 320,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "bottle/coreset/0.001": {
+    "aupro": 0.9343292516641982,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.001,
+    "fit_seconds": 27.2678186520061,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 0.940032,
+    "memory_bank_rows": 153,
+    "ms_per_image": 126.03929268321158,
+    "peak_ram_mb": 2668.96484375,
+    "pixel_auroc": 0.9846688845328164,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.001,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "bottle/coreset/0.1": {
+    "aupro": 0.9444250498390071,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.1,
+    "fit_seconds": 469.91624175501056,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 94.37184,
+    "memory_bank_rows": 15360,
+    "ms_per_image": 281.0232983163853,
+    "peak_ram_mb": 2679.296875,
+    "pixel_auroc": 0.9875532250527271,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.1,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "bottle/images/1/seed0": {
+    "aupro": 0.9507424819433379,
+    "calib_images": 41,
+    "coreset_ratio_used": 1.0,
+    "fit_seconds": 0.3221857030002866,
+    "image_auroc": 0.9903225806451613,
+    "memory_bank_mb": 6.291456,
+    "memory_bank_rows": 1024,
+    "ms_per_image": 143.39600243923687,
+    "peak_ram_mb": 870.046875,
+    "pixel_auroc": 0.9860687199638526,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 1,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 1
+  },
+  "bottle/images/1/seed1": {
+    "aupro": 0.942943058537243,
+    "calib_images": 41,
+    "coreset_ratio_used": 1.0,
+    "fit_seconds": 0.29923441499704495,
+    "image_auroc": 0.9903225806451613,
+    "memory_bank_mb": 6.291456,
+    "memory_bank_rows": 1024,
+    "ms_per_image": 141.13928729216795,
+    "peak_ram_mb": 869.421875,
+    "pixel_auroc": 0.9864169169618242,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 1,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 1
+  },
+  "bottle/images/1/seed2": {
+    "aupro": 0.9438395208326472,
+    "calib_images": 41,
+    "coreset_ratio_used": 1.0,
+    "fit_seconds": 0.29841395700350404,
+    "image_auroc": 0.9903225806451613,
+    "memory_bank_mb": 6.291456,
+    "memory_bank_rows": 1024,
+    "ms_per_image": 140.89858551330795,
+    "peak_ram_mb": 1042.84765625,
+    "pixel_auroc": 0.9870231342164479,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 1,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 1
+  },
+  "bottle/images/10/seed0": {
+    "aupro": 0.942031282453006,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.15,
+    "fit_seconds": 2.014228179003112,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 148.54009226944137,
+    "peak_ram_mb": 871.64453125,
+    "pixel_auroc": 0.9870146042821843,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 10,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 10
+  },
+  "bottle/images/10/seed1": {
+    "aupro": 0.9460110474336008,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.15,
+    "fit_seconds": 2.0292492099979427,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 151.132640585008,
+    "peak_ram_mb": 872.04296875,
+    "pixel_auroc": 0.9870719107321815,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 10,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 10
+  },
+  "bottle/images/10/seed2": {
+    "aupro": 0.9459228801970858,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.15,
+    "fit_seconds": 2.0771579049760476,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 147.38841065867214,
+    "peak_ram_mb": 871.77734375,
+    "pixel_auroc": 0.987392858941847,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 10,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 10
+  },
+  "bottle/images/5/seed0": {
+    "aupro": 0.9421621920953979,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.3,
+    "fit_seconds": 1.0230498290038668,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 138.113694462823,
+    "peak_ram_mb": 871.6640625,
+    "pixel_auroc": 0.9870899198263091,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 5,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 5
+  },
+  "bottle/images/5/seed1": {
+    "aupro": 0.9498293088784704,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.3,
+    "fit_seconds": 1.055313977994956,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 134.4027533657315,
+    "peak_ram_mb": 880.453125,
+    "pixel_auroc": 0.9874735724687935,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 5,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 5
+  },
+  "bottle/images/5/seed2": {
+    "aupro": 0.9468334519828953,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.3,
+    "fit_seconds": 1.0795250729715917,
+    "image_auroc": 0.9935483870967742,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 139.574697024683,
+    "peak_ram_mb": 875.33984375,
+    "pixel_auroc": 0.9875917948349657,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 5,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 5
+  },
+  "bottle/images/50/seed0": {
+    "aupro": 0.9437281672517058,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.03,
+    "fit_seconds": 18.983715056994697,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 142.4835272191558,
+    "peak_ram_mb": 1318.4375,
+    "pixel_auroc": 0.9872184957746897,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 50,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 50
+  },
+  "bottle/images/50/seed1": {
+    "aupro": 0.9425774406806741,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.03,
+    "fit_seconds": 19.402733370981878,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 140.62596129313135,
+    "peak_ram_mb": 1310.15625,
+    "pixel_auroc": 0.9870885729915877,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 50,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 50
+  },
+  "bottle/images/50/seed2": {
+    "aupro": 0.9429591870292025,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.03,
+    "fit_seconds": 19.555140047013992,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 9.437184,
+    "memory_bank_rows": 1536,
+    "ms_per_image": 143.65466904866213,
+    "peak_ram_mb": 1319.1796875,
+    "pixel_auroc": 0.9870826031041001,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 50,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 50
+  },
+  "bottle/size/224": {
+    "aupro": 0.9269424571789213,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 34.9584542690136,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 7.225344,
+    "memory_bank_rows": 1176,
+    "ms_per_image": 93.94541902470448,
+    "peak_ram_mb": 2205.171875,
+    "pixel_auroc": 0.9860144332876332,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 224,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "bottle/size/320": {
+    "aupro": 0.9532660417337829,
+    "calib_images": 41,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 143.39615701101138,
+    "image_auroc": 1.0,
+    "memory_bank_mb": 14.7456,
+    "memory_bank_rows": 2400,
+    "ms_per_image": 252.00302539132082,
+    "peak_ram_mb": 3882.80859375,
+    "pixel_auroc": 0.9884747233847564,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 320,
+      "subset_seed": null
+    },
+    "train_images": 150
+  },
+  "screw/backbone/resnet18": {
+    "aupro": 0.8738100234561885,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 178.3081349489803,
+    "image_auroc": 0.9291666666666667,
+    "memory_bank_mb": 3.61728,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 67.25558212456235,
+    "peak_ram_mb": 1629.26171875,
+    "pixel_auroc": 0.983534025600357,
+    "settings": {
+      "backbone": "resnet18",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 230
+  },
+  "screw/baseline": {
+    "aupro": 0.8647939475622972,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 117.3389613009931,
+    "image_auroc": 0.8983333333333333,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 169.27555760084942,
+    "peak_ram_mb": 3737.69921875,
+    "pixel_auroc": 0.9765627373664313,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 230
+  },
+  "screw/combo/resnet18-320": {
+    "aupro": 0.9619236522222246,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 188.62133380799787,
+    "image_auroc": 0.9633333333333333,
+    "memory_bank_mb": 5.65248,
+    "memory_bank_rows": 3680,
+    "ms_per_image": 38.05928171277628,
+    "peak_ram_mb": 2519.94921875,
+    "pixel_auroc": 0.9938116265019575,
+    "settings": {
+      "backbone": "resnet18",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 320,
+      "subset_seed": null
+    },
+    "train_images": 230
+  },
+  "screw/coreset/0.001": {
+    "aupro": 0.5457986098551223,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.001,
+    "fit_seconds": 43.505879855016246,
+    "image_auroc": 0.745,
+    "memory_bank_mb": 1.44384,
+    "memory_bank_rows": 235,
+    "ms_per_image": 139.2329171878373,
+    "peak_ram_mb": 3733.65234375,
+    "pixel_auroc": 0.873062557844464,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.001,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 230
+  },
+  "screw/coreset/0.1": {
+    "aupro": 0.9160269571990051,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.1,
+    "fit_seconds": 1068.647688408004,
+    "image_auroc": 0.9125,
+    "memory_bank_mb": 144.703488,
+    "memory_bank_rows": 23552,
+    "ms_per_image": 696.9316852999327,
+    "peak_ram_mb": 3769.51953125,
+    "pixel_auroc": 0.9880849575873938,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.1,
+      "images": "all",
+      "size": 256,
+      "subset_seed": null
+    },
+    "train_images": 230
+  },
+  "screw/images/1/seed0": {
+    "aupro": 0.6508998384547301,
+    "calib_images": 80,
+    "coreset_ratio_used": 1.0,
+    "fit_seconds": 0.5602673519751988,
+    "image_auroc": 0.41250000000000003,
+    "memory_bank_mb": 6.291456,
+    "memory_bank_rows": 1024,
+    "ms_per_image": 245.9125777870213,
+    "peak_ram_mb": 1118.5234375,
+    "pixel_auroc": 0.9122260489274849,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 1,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 1
+  },
+  "screw/images/1/seed1": {
+    "aupro": 0.5953535549434081,
+    "calib_images": 80,
+    "coreset_ratio_used": 1.0,
+    "fit_seconds": 0.5518053909763694,
+    "image_auroc": 0.43083333333333335,
+    "memory_bank_mb": 6.291456,
+    "memory_bank_rows": 1024,
+    "ms_per_image": 248.11763406214595,
+    "peak_ram_mb": 1119.0234375,
+    "pixel_auroc": 0.8911025207359458,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 1,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 1
+  },
+  "screw/images/1/seed2": {
+    "aupro": 0.6414775215650308,
+    "calib_images": 80,
+    "coreset_ratio_used": 1.0,
+    "fit_seconds": 0.5625189029960893,
+    "image_auroc": 0.40249999999999997,
+    "memory_bank_mb": 6.291456,
+    "memory_bank_rows": 1024,
+    "ms_per_image": 250.86114563637238,
+    "peak_ram_mb": 1078.0234375,
+    "pixel_auroc": 0.8836601215985084,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 1,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 1
+  },
+  "screw/images/10/seed0": {
+    "aupro": 0.6846769069555549,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.22998046875,
+    "fit_seconds": 4.104064968996681,
+    "image_auroc": 0.5491666666666667,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 278.8060619124735,
+    "peak_ram_mb": 1093.58984375,
+    "pixel_auroc": 0.928123226892865,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 10,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 10
+  },
+  "screw/images/10/seed1": {
+    "aupro": 0.683857855493936,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.22998046875,
+    "fit_seconds": 4.086110676027602,
+    "image_auroc": 0.5266666666666666,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 276.7168136124383,
+    "peak_ram_mb": 1076.109375,
+    "pixel_auroc": 0.9292833646262095,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 10,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 10
+  },
+  "screw/images/10/seed2": {
+    "aupro": 0.7252096057273621,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.22998046875,
+    "fit_seconds": 4.108677843003534,
+    "image_auroc": 0.6158333333333332,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 281.74009209978976,
+    "peak_ram_mb": 1044.35546875,
+    "pixel_auroc": 0.9336914256314339,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 10,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 10
+  },
+  "screw/images/5/seed0": {
+    "aupro": 0.6236619586922855,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.4599609375,
+    "fit_seconds": 1.87854304999928,
+    "image_auroc": 0.46666666666666673,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 267.0213106131996,
+    "peak_ram_mb": 1070.5234375,
+    "pixel_auroc": 0.9065543562320222,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 5,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 5
+  },
+  "screw/images/5/seed1": {
+    "aupro": 0.6118256591264154,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.4599609375,
+    "fit_seconds": 2.027046245028032,
+    "image_auroc": 0.44916666666666666,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 251.89310030000343,
+    "peak_ram_mb": 1074.83984375,
+    "pixel_auroc": 0.9065509293027734,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 5,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 5
+  },
+  "screw/images/5/seed2": {
+    "aupro": 0.6599117821916094,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.4599609375,
+    "fit_seconds": 1.9292513969994616,
+    "image_auroc": 0.5266666666666666,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 269.302940500711,
+    "peak_ram_mb": 1105.4921875,
+    "pixel_auroc": 0.9160578848420133,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 5,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 5
+  },
+  "screw/images/50/seed0": {
+    "aupro": 0.8525366542879547,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.04599609375,
+    "fit_seconds": 52.7575652700034,
+    "image_auroc": 0.7808333333333333,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 266.8866130617971,
+    "peak_ram_mb": 1302.49609375,
+    "pixel_auroc": 0.9751905031181377,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 50,
+      "size": 256,
+      "subset_seed": 0
+    },
+    "train_images": 50
+  },
+  "screw/images/50/seed1": {
+    "aupro": 0.8818573862032753,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.04599609375,
+    "fit_seconds": 51.97734063200187,
+    "image_auroc": 0.7891666666666667,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 271.74623301216343,
+    "peak_ram_mb": 1319.0703125,
+    "pixel_auroc": 0.9757043503760204,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 50,
+      "size": 256,
+      "subset_seed": 1
+    },
+    "train_images": 50
+  },
+  "screw/images/50/seed2": {
+    "aupro": 0.8454435917373001,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.04599609375,
+    "fit_seconds": 52.609279458993115,
+    "image_auroc": 0.8075,
+    "memory_bank_mb": 14.46912,
+    "memory_bank_rows": 2355,
+    "ms_per_image": 268.9045942002849,
+    "peak_ram_mb": 1314.16015625,
+    "pixel_auroc": 0.9713453960093735,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": 50,
+      "size": 256,
+      "subset_seed": 2
+    },
+    "train_images": 50
+  },
+  "screw/size/224": {
+    "aupro": 0.8510137697296226,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 113.11106944800122,
+    "image_auroc": 0.88,
+    "memory_bank_mb": 11.077632,
+    "memory_bank_rows": 1803,
+    "ms_per_image": 162.49184209991654,
+    "peak_ram_mb": 3002.796875,
+    "pixel_auroc": 0.9679214839646666,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 224,
+      "subset_seed": null
+    },
+    "train_images": 230
+  },
+  "screw/size/320": {
+    "aupro": 0.9412873768335417,
+    "calib_images": 80,
+    "coreset_ratio_used": 0.01,
+    "fit_seconds": 486.91767975100083,
+    "image_auroc": 0.9758333333333333,
+    "memory_bank_mb": 22.60992,
+    "memory_bank_rows": 3680,
+    "ms_per_image": 425.2120897996065,
+    "peak_ram_mb": 5477.328125,
+    "pixel_auroc": 0.9904903704541044,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "images": "all",
+      "size": 320,
+      "subset_seed": null
+    },
+    "train_images": 230
+  }
+}

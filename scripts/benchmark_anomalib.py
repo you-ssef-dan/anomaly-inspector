@@ -25,14 +25,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
 from torch.utils.data import DataLoader
 
 from anomaly_inspector.data.dataset import ManifestDataset
-from anomaly_inspector.evaluation.metrics import aupro, image_auroc, pixel_auroc
+from anomaly_inspector.evaluation.evaluate import Predictions, evaluate, load_masks, predict
 from anomaly_inspector.models.backbones import build_backbone
 from anomaly_inspector.models.patchcore import PatchCore
 
@@ -41,42 +39,19 @@ LAYERS = ("layer2", "layer3")
 ANOMALIB_DEFAULT_NEIGHBORS = 9  # anomalib re-weights the image score over this many neighbours
 
 
-def load_masks(rows: pd.DataFrame, size: int) -> np.ndarray:
-    """Ground-truth masks at model resolution, resized with nearest-neighbour (stay 0 / 255)."""
-    masks = []
-    for path in rows["mask_path"]:
-        if isinstance(path, str):
-            with Image.open(path) as mask:
-                masks.append(np.asarray(mask.resize((size, size), Image.Resampling.NEAREST)) > 0)
-        else:
-            masks.append(np.zeros((size, size), dtype=bool))
-    return np.stack(masks)
-
-
 def run_ours(
     backbone: torch.nn.Module,
     train: DataLoader[Any],
     test: DataLoader[Any],
     ratio: float,
     seed: int,
-) -> tuple[np.ndarray, np.ndarray, float, float]:
+) -> tuple[Predictions, float]:
     torch.manual_seed(seed)
     model = PatchCore(backbone, layers=LAYERS)
     start = time.perf_counter()
     model.fit(train, ratio, seed=seed)
     fit_seconds = time.perf_counter() - start
-    return (*score(model, test), fit_seconds)
-
-
-def score(model: Any, test: DataLoader[Any]) -> tuple[np.ndarray, np.ndarray, float]:
-    """Image scores, maps (N, H, W) and the seconds spent, for a model giving (map, score)."""
-    maps, scores = [], []
-    start = time.perf_counter()
-    for images, _ in test:
-        anomaly_map, image_score = model(images)
-        maps.append(anomaly_map.reshape(-1, *anomaly_map.shape[-2:]).numpy())
-        scores.append(image_score.numpy())
-    return np.concatenate(scores), np.concatenate(maps), time.perf_counter() - start
+    return predict(model, test), fit_seconds
 
 
 class AnomalibAsTuple:
@@ -101,7 +76,7 @@ def run_anomalib(
     seed: int,
     num_neighbors: int,
     pretrained: bool,
-) -> tuple[np.ndarray, np.ndarray, float, float]:
+) -> tuple[Predictions, float]:
     from anomalib.models.image.patchcore.torch_model import PatchcoreModel
 
     torch.manual_seed(seed)
@@ -121,7 +96,7 @@ def run_anomalib(
     model.subsample_embedding(ratio)
     fit_seconds = time.perf_counter() - start
     model.eval()
-    return (*score(AnomalibAsTuple(model), test), fit_seconds)
+    return predict(AnomalibAsTuple(model), test), fit_seconds
 
 
 def load_weights_and_check(anomalib_model: Any, source: torch.nn.Module) -> None:
@@ -174,11 +149,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     source = build_backbone(args.backbone, pretrained=pretrained)
 
     if args.impl == "ours":
-        scores, maps, infer_seconds, fit_seconds = run_ours(
-            source, train, test, args.coreset_ratio, args.seed
-        )
+        predictions, fit_seconds = run_ours(source, train, test, args.coreset_ratio, args.seed)
     else:
-        scores, maps, infer_seconds, fit_seconds = run_anomalib(
+        predictions, fit_seconds = run_anomalib(
             args.impl,
             args.backbone,
             source,
@@ -194,11 +167,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     result = {
         "category": args.category,
         "impl": args.impl,
-        "image_auroc": image_auroc(test_rows["label"], scores),
-        "pixel_auroc": pixel_auroc(masks, maps),
-        "aupro": aupro(masks, maps),
+        **evaluate(test_rows["label"], predictions, masks),
         "fit_seconds": fit_seconds,
-        "ms_per_image": 1000 * infer_seconds / len(test_rows),
+        "ms_per_image": predictions.ms_per_image,  # time in the model only, not image decoding
         "peak_ram_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
         "train_images": len(train_rows),
         "test_images": len(test_rows),
