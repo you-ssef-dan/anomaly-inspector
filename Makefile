@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -19,3 +19,8 @@ bench:
 		done; \
 	done
 check: lint test
+# Needs .env (cp .env.example .env). Stopping keeps the runs: they live in Docker volumes.
+mlflow-up:
+	docker compose --profile mlflow up -d --build
+mlflow-down:
+	docker compose --profile mlflow down

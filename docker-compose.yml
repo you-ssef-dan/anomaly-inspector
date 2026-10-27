@@ -1,0 +1,34 @@
+services:
+  mlflow-db:  # not "postgres": Airflow's Compose file already uses that name
+    image: postgres:17
+    profiles: [mlflow]
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in .env}
+      POSTGRES_DB: mlflow
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 5s
+      retries: 10
+
+  mlflow:
+    build: {context: docker, dockerfile: mlflow.Dockerfile}
+    profiles: [mlflow]
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql+psycopg2://mlflow:${POSTGRES_PASSWORD}@mlflow-db:5432/mlflow
+      --artifacts-destination /mlartifacts
+      --allowed-hosts "localhost:*,127.0.0.1:*,mlflow:*"
+    ports: ["127.0.0.1:5000:5000"]
+    volumes: [mlartifacts:/mlartifacts]
+    depends_on:
+      mlflow-db: {condition: service_healthy}
+
+networks:
+  default:
+    name: inspection  # Airflow joins this network in Phase 9
+
+volumes:
+  pgdata:
+  mlartifacts:
