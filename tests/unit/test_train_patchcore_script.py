@@ -111,10 +111,15 @@ def test_the_run_holds_the_metrics_the_artifacts_and_a_model_that_reloads(
     # Each picture is the image its score belongs to: a "missed" panel shows a defect.
     assert all((p["kind"] == "missed") == (p["defect_type"] != "good") for p in panels["panels"])
 
-    # The registered model, loaded fresh from the store, gives back the logged holdout AUROC.
-    version = mlflow.MlflowClient().get_model_version("patchcore-bottle", "1")
-    assert version.run_id == run.info.run_id
-    model = mlflow.pytorch.load_model("models:/patchcore-bottle/1")
+    # The first clean version of a category is both challenger and champion, and the
+    # champion, loaded fresh from the store, gives back the logged holdout AUROC.
+    client = mlflow.MlflowClient()
+    assert client.get_model_version("patchcore-bottle", "1").run_id == run.info.run_id
+    assert client.get_registered_model("patchcore-bottle").aliases == {
+        "champion": 1,
+        "challenger": 1,
+    }
+    model = mlflow.pytorch.load_model("models:/patchcore-bottle@champion")
     holdout = manifest[manifest["split"] == "holdout"].reset_index()
     reloaded = script.score(model, holdout, 64).scores
     assert image_auroc(holdout["label"].to_numpy(), reloaded) == pytest.approx(

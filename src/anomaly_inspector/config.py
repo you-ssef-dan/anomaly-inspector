@@ -44,10 +44,19 @@ class ThresholdConfig(Strict):
     normal_quantile: float = Field(0.99, gt=0, lt=1)
 
 
+class PromotionConfig(Strict):
+    # The line's speed requirement, an assumption: 200 ms is 5 parts per second per camera.
+    latency_budget_ms: float = Field(200, gt=0)
+    # How much holdout AUPRO a new version may lose and still replace the champion, so a
+    # difference in the third decimal does not block it. The guide's value.
+    aupro_tolerance: float = Field(0.005, ge=0, lt=1)
+
+
 class Params(Strict):
     data: DataConfig
     patchcore: PatchcoreConfig = PatchcoreConfig()
     threshold: ThresholdConfig = ThresholdConfig()
+    promotion: PromotionConfig = PromotionConfig()
     stfpm: StfpmConfig = StfpmConfig()
 
 
