@@ -1,3 +1,6 @@
+# `pre-commit install` sets up both: checks before a commit, dvc push before a git push
+default_install_hook_types: [pre-commit, pre-push]
+
 repos:
   # Lint and format Python with the same ruff version as pyproject.toml
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -31,3 +34,14 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
+
+  # git push also pushes the DVC outputs (models, figures) to the DVC remote
+  - repo: local
+    hooks:
+      - id: dvc-push
+        name: dvc push
+        entry: uv run dvc push
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
