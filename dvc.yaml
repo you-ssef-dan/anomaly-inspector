@@ -74,3 +74,31 @@ stages:
             cache: false
             x: fpr
             y: pro
+
+  # The PyTorch model as one ONNX file, checked against PyTorch on holdout (fails if they differ).
+  export_patchcore:
+    foreach: ${data.categories}
+    do:
+      cmd: python -m anomaly_inspector.pipelines.export_patchcore --category ${item}
+      deps:
+        - models/patchcore/${item}/model.pt
+        - models/patchcore/${item}/threshold.json
+        - reports/patchcore/${item}/metrics.json
+        - data/processed/manifest.parquet
+        - data/raw/mvtec_ad/${item}/ground_truth
+        - src/anomaly_inspector/config.py
+        - src/anomaly_inspector/data/dataset.py
+        - src/anomaly_inspector/preprocessing.py
+        - src/anomaly_inspector/models/backbones.py
+        - src/anomaly_inspector/models/patchcore.py
+        - src/anomaly_inspector/models/storage.py
+        - src/anomaly_inspector/evaluation/evaluate.py
+        - src/anomaly_inspector/evaluation/metrics.py
+        - src/anomaly_inspector/export/onnx_export.py
+        - src/anomaly_inspector/tracking.py  # the git SHA in the metadata
+        - src/anomaly_inspector/pipelines/export_patchcore.py
+      outs:
+        - models/patchcore/${item}/model.onnx
+      metrics:
+        - reports/patchcore/${item}/export.json:
+            cache: false
