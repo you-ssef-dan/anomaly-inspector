@@ -8,8 +8,9 @@
 not, and draws a heatmap showing where the defect is.** Built end to end on a CPU laptop, from raw
 images to a tested, versioned pipeline.
 
-> **Status: work in progress.** Data, models and metrics are done; tracking, the API, Docker,
-> CI/CD gates and retraining come next. See the [roadmap](#roadmap).
+> **Status: work in progress.** Data, models, metrics and experiment tracking are done; the
+> training pipeline, ONNX, the API, Docker, CI/CD gates and retraining come next. See the
+> [roadmap](#roadmap).
 
 ## The idea
 
@@ -29,18 +30,34 @@ implementation in [anomalib](https://github.com/open-edge-platform/anomalib).
 ## Results so far
 
 Dataset: [MVTec AD](https://www.mvtec.com/research-teaching/datasets/mvtec-ad), three categories
-(bottle, carpet, screw). The table compares this repo's PatchCore with anomalib's on **bottle**,
-with identical inputs, splits, coreset size (1%), seed and metric code. anomalib's backbone is
-given the same ImageNet weights, so the only difference is the algorithm code.
+(bottle, carpet, screw). This repo's PatchCore (WideResNet-50, 256 px, 1% memory bank), scored on
+`holdout`, the split that no decision has touched:
+
+| Holdout | Images (good + defective) | Image AUROC | Pixel AUROC | AUPRO | ms per image |
+| --- | --- | --- | --- | --- | --- |
+| Bottle | 10 + 32 | 1.0000 | 0.9862 | 0.9410 | 100 |
+| Carpet | 14 + 45 | 0.9873 | 0.9896 | 0.9420 | 113 |
+| Screw | 21 + 59 | 0.8918 | 0.9778 | 0.8852 | 115 |
+
+- **AUPRO** counts every defect region equally, however small, so it is the metric that cares about
+  tiny defects. Screw is the hard category: tiny defects on parts lying at any angle.
+- Each row is one run of `scripts/train_patchcore.py`, logged to MLflow and registered as the
+  current `champion` of its category (see [tracking](#tracking-and-model-registry)).
+- The holdout sets are small: with 21 good screws, a single image can move image AUROC by up to
+  1/21, about 5 points.
+- Latency is the model alone, on a laptop CPU (Intel Core Ultra 5 125H), batch 8. It depends on
+  what else the machine is doing: the same screw model measured 169 ms during the experiments.
+
+**Checked against anomalib.** On bottle's full test set, with identical inputs, splits, coreset size,
+seed and metric code (anomalib's backbone gets the same ImageNet weights), the two implementations
+differ by less than 0.001:
 
 | Bottle, full test set (83 images) | Image AUROC | Pixel AUROC | AUPRO |
 | --- | --- | --- | --- |
 | PatchCore (this repo) | 1.0000 | 0.9866 | 0.9413 |
 | anomalib PatchCore | 1.0000 | 0.9868 | 0.9417 |
 
-- **AUPRO** counts every defect region equally, however small, so it is the metric that cares about
-  tiny defects. Here it agrees with anomalib's AUPRO to 5 decimals (a slow test checks it).
-- Bottle is the easy category. Screw (tiny defects, parts at any angle) is the hard one, see below.
+- Our AUPRO code agrees with anomalib's to 5 decimals on the same maps (a slow test checks it).
 - Full numbers: [`reports/anomalib_benchmark.json`](reports/anomalib_benchmark.json). The data and
   its limits are described in the [data card](docs/data_card.md).
 
@@ -80,6 +97,40 @@ map.
 - Every panel is explained in [`reports/failure_notes.md`](reports/failure_notes.md), with guesses
   marked as guesses.
 
+## Tracking and model registry
+
+Every training run is logged to [MLflow](https://mlflow.org) (server and PostgreSQL in Docker
+Compose), so any number above can be traced back to what produced it:
+
+| Logged | What |
+| --- | --- |
+| Tags | git SHA, whether the code had uncommitted changes, DVC data hash, category, CPU model |
+| Params | every value of `params.yaml` |
+| Metrics | holdout image AUROC, pixel AUROC, AUPRO, ms per image; CPU and RAM over time |
+| Artifacts | `threshold.json`, ROC and PRO curves, the holdout failure gallery |
+| Model | registered as a new version of `patchcore-<category>` |
+
+**Promotion is code, not a click.** Each new version becomes the `challenger`.
+[`should_promote`](src/anomaly_inspector/registry.py) makes it the `champion` only if it was trained
+from committed code, stays under the latency budget (200 ms per image), and is not worse than the
+current champion: image AUROC not lower, AUPRO at most 0.005 lower. Anything downstream loads
+`models:/patchcore-screw@champion`, never a version number. Reloading each champion in a fresh
+session reproduces its logged holdout AUROC exactly.
+
+The `threshold.json` of each run holds the decision threshold, chosen on `calib` with a missed
+defect assumed to cost 10 times a false reject, and, for comparison, the 99th percentile of good
+parts' scores (the option for a new line that has no defect images yet).
+
+The Phase 2 experiments are in MLflow too. All 19 screw runs, one line each, coloured by AUPRO: the
+dark red line is ResNet-18 at 320 px, both the fastest run and the most accurate.
+
+![The 19 screw experiments in MLflow's parallel coordinates view](reports/figures/mlflow_screw_runs.png)
+
+And how many good images a new line needs (3 random subsets per count): with 1 to 10 images AUPRO
+stays below 0.73; with 50 it is 0.845 to 0.882 (all 230 images: 0.865).
+
+![AUPRO against the number of good training images, in MLflow](reports/figures/mlflow_images.png)
+
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`.
@@ -100,6 +151,15 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make check` | Ruff, strict mypy and the fast tests (what CI runs) |
 | `make test-slow` | Tests that need the optional `bench` extra, such as the comparison with anomalib |
 | `make bench` | Benchmark PatchCore against anomalib on all categories (needs the data and several GB of RAM) |
+| `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
+
+To train and track a model (needs the data, Docker and about 4 GB of free RAM):
+
+```bash
+cp .env.example .env    # then put a real password in it
+make mlflow-up          # the UI is at http://localhost:5000
+uv run --env-file .env python scripts/train_patchcore.py --category screw
+```
 
 To rebuild the processed data you need the dataset itself. The [data card](docs/data_card.md)
 explains where to get it, how it is verified and how it is split.
@@ -110,12 +170,15 @@ explains where to get it, how it is verified and how it is split.
 src/anomaly_inspector/
   preprocessing.py   one image function shared by training and (later) serving; numpy + Pillow only
   config.py          typed settings read from params.yaml
+  tracking.py        what every MLflow run records (code, data and hardware tags, params)
+  registry.py        champion and challenger: the promotion rules
   data/              manifest, validation, splits, PyTorch Dataset
   models/            PatchCore, STFPM, backbones
   training/          STFPM training loop (seeded, early stopping, best checkpoint)
-  evaluation/        image AUROC, pixel AUROC, AUPRO, and the scoring helpers
+  evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
   pipelines/         one entry point per DVC stage (prepare so far)
-scripts/             benchmark vs anomalib, simulation pool, experiments and charts, gallery
+scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery
+docker/              the MLflow server image (docker-compose.yml runs it with PostgreSQL)
 tests/               unit tests on generated fake data, plus a few slow ones
 notebooks/           exploratory data analysis (no outputs stored in git)
 docs/                data card, experiment findings
@@ -131,6 +194,8 @@ dvc.yaml             the data pipeline
 - **Honest evaluation.** The data is split into `train`, `val_normal`, `calib` and `holdout`.
   Every decision (thresholds, settings) is made on `calib`; the reported numbers come from
   `holdout`. Nothing is tuned on the test set.
+- **Every run traceable, promotion by tested code.** Each MLflow run records its commit, data
+  hash and settings; a run from uncommitted code can never become the champion.
 - **Same preprocessing everywhere.** One function, with a golden-file test, so training and serving
   cannot drift apart.
 - **Reproducible.** Fixed seeds, a locked environment (`uv.lock`) and validated configuration.
@@ -147,7 +212,7 @@ dvc.yaml             the data pipeline
 | 0 | Repo foundations: uv, ruff, mypy, pytest, pre-commit, CI, branch protection | ✅ |
 | 1 | Data and DVC: manifest, validation, splits, preprocessing, EDA, data card | ✅ |
 | 2 | Models in PyTorch: PatchCore, STFPM, metrics, anomalib benchmark, experiments, heatmap gallery | 🚧 |
-| 3 | Experiment tracking and model registry with MLflow | ⬜ |
+| 3 | Experiment tracking and model registry with MLflow | ✅ |
 | 4 | Full DVC pipeline: train, evaluate, export per category | ⬜ |
 | 5 | ONNX export, optimisation and quantisation | ⬜ |
 | 6 | FastAPI inference service with pytest | ⬜ |
