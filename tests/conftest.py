@@ -1,7 +1,10 @@
+import subprocess
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
+import yaml
 from PIL import Image
 
 SIZE = 64
@@ -45,3 +48,39 @@ def fake_mvtec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                 if folder.startswith("test/") and defect != "good":
                     write_mask(root / category / "ground_truth" / defect / f"{i:03d}_mask.png")
     return root
+
+
+@pytest.fixture
+def fake_project(fake_mvtec: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The repo layout around the fake dataset, ready for the PatchCore stages and scripts.
+
+    A manifest, a DVC pointer file, a params.yaml with a tiny setup (ResNet-18, 64 px) and a git
+    repo with one commit. The backbone gets random weights, so nothing is downloaded.
+    """
+    from anomaly_inspector.data.manifest import build_manifest
+    from anomaly_inspector.data.splits import assign_splits
+    from anomaly_inspector.models.backbones import build_backbone
+
+    # Bottle is split as usual. Screw has too few fake images to split, so all of its rows
+    # count as train: they are there for code that must pick one category and skip the others.
+    categories = ["bottle", "screw"]
+    bottle = assign_splits(build_manifest(fake_mvtec, ["bottle"]), val_fraction=0.1, seed=42)
+    screw = build_manifest(fake_mvtec, ["screw"]).assign(split="train")
+    manifest = pd.concat([bottle, screw], ignore_index=True)
+    Path("data/processed").mkdir(parents=True)
+    manifest.to_parquet("data/processed/manifest.parquet", index=False)
+    Path("data/raw/mvtec_ad.dvc").write_text("outs:\n- md5: abc123.dir\n  path: mvtec_ad\n")
+    params = {
+        "data": {"root": str(fake_mvtec), "categories": categories, "image_size": 64},
+        "patchcore": {"backbone": "resnet18", "coreset_ratio": 0.5},
+    }
+    Path("params.yaml").write_text(yaml.safe_dump(params))
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+    for command in (["init", "-q"], ["add", "."], ["commit", "-q", "-m", "fake"]):
+        subprocess.run([*git, *command], check=True, capture_output=True)
+
+    monkeypatch.setattr(
+        "anomaly_inspector.pipelines.train_patchcore.build_backbone",
+        lambda name: build_backbone(name, pretrained=False),
+    )
+    return Path.cwd()

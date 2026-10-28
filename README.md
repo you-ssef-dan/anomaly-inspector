@@ -176,7 +176,7 @@ src/anomaly_inspector/
   models/            PatchCore, STFPM, backbones
   training/          STFPM training loop (seeded, early stopping, best checkpoint)
   evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
-  pipelines/         one entry point per DVC stage (prepare so far)
+  pipelines/         one entry point per DVC stage: prepare, then train and evaluate PatchCore
 scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery
 docker/              the MLflow server image (docker-compose.yml runs it with PostgreSQL)
 tests/               unit tests on generated fake data, plus a few slow ones
@@ -184,7 +184,7 @@ notebooks/           exploratory data analysis (no outputs stored in git)
 docs/                data card, experiment findings
 reports/             benchmark and experiment results, charts, heatmap gallery, failure notes
 params.yaml          every tunable value, validated at load time
-dvc.yaml             the data pipeline
+dvc.yaml             the pipeline, from raw images to a model and its reports per category
 ```
 
 ## Engineering choices
