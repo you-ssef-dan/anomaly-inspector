@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import mlflow
 import numpy as np
 import pandas as pd
 import pytest
@@ -15,6 +16,7 @@ from anomaly_inspector.evaluation import thresholds
 from anomaly_inspector.models.storage import load_patchcore
 from anomaly_inspector.pipelines import evaluate_patchcore, train_patchcore
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
+from anomaly_inspector.tracking import md5_of
 
 MODEL = Path("models/patchcore/bottle/model.pt")
 
@@ -163,3 +165,37 @@ def test_evaluate_leaves_the_model_untouched(fake_project: Path) -> None:
     before = MODEL.read_bytes()
     evaluate_patchcore.main(["--category", "bottle"])
     assert MODEL.read_bytes() == before
+
+
+def test_without_a_server_the_stage_writes_only_its_files(
+    fake_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    train_patchcore.main(["--category", "bottle"])
+    evaluate_patchcore.main(["--category", "bottle"])
+    assert Outputs.for_category("bottle").metrics.exists()
+    assert not Path("mlflow.db").exists()
+    assert not Path("mlruns").exists()
+
+
+def test_with_a_server_the_evaluation_is_a_run_tagged_with_its_model(
+    fake_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", f"sqlite:///{fake_project / 'store.db'}")
+    train_patchcore.main(["--category", "bottle"])
+    evaluate_patchcore.main(["--category", "bottle"])
+
+    (run,) = mlflow.search_runs(experiment_names=["patchcore"], output_format="list")
+    assert (run.info.run_name, run.info.status) == ("patchcore-bottle", "FINISHED")
+    assert run.data.tags["model_md5"] == md5_of(MODEL)
+    assert run.data.tags["category"] == "bottle"
+    out = Outputs.for_category("bottle")
+    logged = {k: v for k, v in run.data.metrics.items() if not k.startswith("system/")}
+    assert logged == pytest.approx(json.loads(out.metrics.read_text()))
+    files = {a.path for a in mlflow.artifacts.list_artifacts(run_id=run.info.run_id)}
+    assert files == {"threshold.json", "figures"}
+    figures = mlflow.artifacts.list_artifacts(run_id=run.info.run_id, artifact_path="figures")
+    assert {Path(a.path).name for a in figures} == {p.name for p in out.figures.iterdir()}
+    # Registering is not the stage's job: re-running it must never add a registry version.
+    assert mlflow.search_logged_models(output_format="list") == []
+    assert mlflow.MlflowClient().search_registered_models() == []
