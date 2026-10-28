@@ -1,0 +1,6 @@
+{
+  "holdout_aupro": 0.9409717463483634,
+  "holdout_image_auroc": 1.0,
+  "holdout_ms_per_image": 100.16263735714607,
+  "holdout_pixel_auroc": 0.9861926300412789
+}
