@@ -58,6 +58,8 @@ def project(
     real = script.build_backbone
     monkeypatch.setattr(script, "build_backbone", lambda name: real(name, pretrained=False))
     monkeypatch.setenv("MLFLOW_TRACKING_URI", f"sqlite:///{tmp_path / 'mlflow.db'}")
+    # Sample system metrics every half second instead of 10, so this short run gets some.
+    monkeypatch.setenv("MLFLOW_SYSTEM_METRICS_SAMPLING_INTERVAL", "0.5")
     return tmp_path
 
 
@@ -74,12 +76,17 @@ def test_the_run_holds_the_metrics_the_artifacts_and_a_model_that_reloads(
     run = the_run()
     assert run.info.status == "FINISHED"
     assert run.info.run_name == "patchcore-bottle"
-    assert set(run.data.metrics) == {
+    model_metrics = {name for name in run.data.metrics if not name.startswith("system/")}
+    assert model_metrics == {
         "holdout_image_auroc",
         "holdout_pixel_auroc",
         "holdout_aupro",
         "holdout_ms_per_image",
     }
+    # CPU and RAM were sampled while the run was open.
+    assert {"system/cpu_utilization_percentage", "system/system_memory_usage_megabytes"} <= set(
+        run.data.metrics
+    )
     files = {a.path for a in mlflow.artifacts.list_artifacts(run_id=run.info.run_id)}
     assert files == {"threshold.json", "curves", "gallery"}  # the model is stored apart (MLflow 3)
     nested = {

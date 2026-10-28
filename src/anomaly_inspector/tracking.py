@@ -121,7 +121,9 @@ def start_run(experiment: str, run_name: str, category: str, params: Params) -> 
     #   with start_run(...) as run:
     # When that `with` block ends, MLflow closes the run by itself:
     # FINISHED if the block went well, FAILED if an error came out of it.
-    run = mlflow.start_run(run_name=run_name, tags=tags)
+    # log_system_metrics: while the run is open, MLflow samples CPU, RAM, disk and network
+    # every 10 seconds (the "System metrics" tab), so a setting too big for the laptop shows.
+    run = mlflow.start_run(run_name=run_name, tags=tags, log_system_metrics=True)
 
     # Params are the inputs of the run: the settings it was trained with. We log the
     # params the script actually uses (passed in), not a fresh read of params.yaml,
