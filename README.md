@@ -41,8 +41,9 @@ Dataset: [MVTec AD](https://www.mvtec.com/research-teaching/datasets/mvtec-ad), 
 
 - **AUPRO** counts every defect region equally, however small, so it is the metric that cares about
   tiny defects. Screw is the hard category: tiny defects on parts lying at any angle.
-- Each row is one run of `scripts/train_patchcore.py`, logged to MLflow and registered as the
-  current `champion` of its category (see [tracking](#tracking-and-model-registry)).
+- Each row comes from the DVC pipeline (`dvc repro`), which writes it to
+  `reports/patchcore/<category>/metrics.json`; the model is registered in MLflow as the current
+  `champion` of its category (see [tracking](#tracking-and-model-registry)).
 - The holdout sets are small: with 21 good screws, a single image can move image AUROC by up to
   1/21, about 5 points.
 - Latency is the model alone, on a laptop CPU (Intel Core Ultra 5 125H), batch 8. It depends on
@@ -99,16 +100,17 @@ map.
 
 ## Tracking and model registry
 
-Every training run is logged to [MLflow](https://mlflow.org) (server and PostgreSQL in Docker
-Compose), so any number above can be traced back to what produced it:
+When a server is configured, every evaluation in the pipeline is logged to
+[MLflow](https://mlflow.org) (server and PostgreSQL in Docker Compose), so any number above can be
+traced back to what produced it:
 
 | Logged | What |
 | --- | --- |
-| Tags | git SHA, whether the code had uncommitted changes, DVC data hash, category, CPU model |
+| Tags | git SHA, whether the code had uncommitted changes, DVC data hash, md5 of the model file, category, CPU model |
 | Params | every value of `params.yaml` |
 | Metrics | holdout image AUROC, pixel AUROC, AUPRO, ms per image; CPU and RAM over time |
 | Artifacts | `threshold.json`, ROC and PRO curves, the holdout failure gallery |
-| Model | registered as a new version of `patchcore-<category>` |
+| Model | registered as a new version of `patchcore-<category>` by `scripts/register_model.py`, outside the pipeline, so re-running a stage never adds a version |
 
 **Promotion is code, not a click.** Each new version becomes the `challenger`.
 [`should_promote`](src/anomaly_inspector/registry.py) makes it the `champion` only if it was trained
@@ -153,13 +155,16 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make bench` | Benchmark PatchCore against anomalib on all categories (needs the data and several GB of RAM) |
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
 
-To train and track a model (needs the data, Docker and about 4 GB of free RAM):
+To train, evaluate and register the models (needs the data, Docker and about 4 GB of free RAM):
 
 ```bash
 cp .env.example .env    # then put a real password in it
 make mlflow-up          # the UI is at http://localhost:5000
-uv run --env-file .env python scripts/train_patchcore.py --category screw
+uv run --env-file .env dvc repro                                   # every category; re-runs only what changed
+uv run --env-file .env python scripts/register_model.py --category screw
 ```
+
+Without `--env-file`, `dvc repro` writes exactly the same files, just without MLflow runs.
 
 To rebuild the processed data you need the dataset itself. The [data card](docs/data_card.md)
 explains where to get it, how it is verified and how it is split.

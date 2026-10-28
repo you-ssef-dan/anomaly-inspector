@@ -17,6 +17,8 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+        # DVC writes dvc.lock itself and ends wrapped lines with a space; it would be put back
+        exclude: ^dvc\.lock$
 
   # Strip notebook outputs so diffs stay small and readable
   - repo: https://github.com/kynan/nbstripout

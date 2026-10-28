@@ -11,6 +11,10 @@ Reads models/patchcore/<category>/model.pt and writes:
 
 Nothing is fitted here. The threshold is chosen on calib and val_normal; holdout is only scored,
 so its numbers stay honest.
+
+With MLFLOW_TRACKING_URI set, the evaluation is also an MLflow run in the "patchcore" experiment,
+tagged with the md5 of the model it scored. The model itself is not logged or registered here:
+scripts/register_model.py does that, so re-running this stage never adds a registry version.
 """
 
 import argparse
@@ -20,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import mlflow
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
@@ -33,6 +38,7 @@ from anomaly_inspector.evaluation.plots import pro_figure, pro_points, roc_figur
 from anomaly_inspector.evaluation.thresholds import cost_threshold, normal_threshold
 from anomaly_inspector.models.patchcore import PatchCore
 from anomaly_inspector.models.storage import load_patchcore
+from anomaly_inspector.tracking import md5_of, start_run, tracking_enabled
 
 MANIFEST_PATH = Path("data/processed/manifest.parquet")
 GALLERY_PANELS = 4  # images per row of the failure gallery
@@ -144,22 +150,43 @@ def evaluate_patchcore(
     return metrics
 
 
+def log_evaluation(metrics: dict[str, float], out: Outputs) -> None:
+    """Send what the stage wrote to the active MLflow run."""
+    mlflow.log_metrics(metrics)
+    mlflow.log_artifact(str(out.threshold))
+    mlflow.log_artifacts(str(out.figures), "figures")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--category", required=True)
     args = parser.parse_args(argv)
 
+    params = load_params()
     manifest = pd.read_parquet(MANIFEST_PATH)
     rows = manifest[manifest["category"] == args.category]
-    saved = load_patchcore(Path("models/patchcore") / args.category / "model.pt")
-    metrics = evaluate_patchcore(
-        saved.model,
-        saved.image_size,  # the size the model was trained at, from the model file
-        rows,
-        load_params().threshold,
-        Outputs.for_category(args.category),
-        f"{args.category}: the closest calls",
-    )
+    model_file = Path("models/patchcore") / args.category / "model.pt"
+    saved = load_patchcore(model_file)
+    out = Outputs.for_category(args.category)
+
+    def run() -> dict[str, float]:
+        return evaluate_patchcore(
+            saved.model,
+            saved.image_size,  # the size the model was trained at, from the model file
+            rows,
+            params.threshold,
+            out,
+            f"{args.category}: the closest calls",
+        )
+
+    if tracking_enabled():
+        with start_run("patchcore", f"patchcore-{args.category}", args.category, params):
+            # register_model.py finds this run again from the model file's md5.
+            mlflow.set_tag("model_md5", md5_of(model_file))
+            metrics = run()
+            log_evaluation(metrics, out)
+    else:
+        metrics = run()
     print(f"{args.category}: " + ", ".join(f"{k} {v:.4f}" for k, v in metrics.items()))
 
 

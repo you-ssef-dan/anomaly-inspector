@@ -24,7 +24,7 @@ def should_promote(
 ) -> bool:
     """Whether the new version may replace the champion. old is None for a category's first.
 
-    new and old are the holdout metrics of the two runs, as train_patchcore.py logs them.
+    new and old are the holdout metrics of the two runs, as the evaluate stage logs them.
     """
     # A run made from uncommitted code cannot be rebuilt from git, so it never serves.
     if dirty:

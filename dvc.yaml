@@ -55,6 +55,7 @@ stages:
         - src/anomaly_inspector/models/patchcore.py
         - src/anomaly_inspector/models/storage.py
         - src/anomaly_inspector/evaluation
+        - src/anomaly_inspector/tracking.py  # the optional MLflow run
         - src/anomaly_inspector/pipelines/evaluate_patchcore.py
       params:
         - threshold  # the image size comes from model.pt, the size the model was trained at
