@@ -6,7 +6,7 @@ is freed like any Python object once it is saved.
 
 import numpy as np
 from matplotlib.figure import Figure
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from sklearn.metrics import roc_curve
 
 from anomaly_inspector.evaluation.metrics import aupro, image_auroc, pro_curve
@@ -31,10 +31,28 @@ def curve_figure(x: ArrayLike, y: ArrayLike, title: str, xlabel: str, ylabel: st
     return fig
 
 
-def roc_figure(labels: ArrayLike, scores: ArrayLike) -> Figure:
+Curve = tuple[NDArray[np.float64], NDArray[np.float64]]  # (x, y)
+
+
+def roc_points(labels: ArrayLike, scores: ArrayLike) -> Curve:
     # Every possible threshold gives one point: how many good parts it rejects (x)
     # against how many defective parts it catches (y). Image AUROC is the area under it.
     fpr, tpr, _ = roc_curve(labels, scores)
+    return fpr.astype(np.float64), tpr.astype(np.float64)
+
+
+def pro_points(masks: ArrayLike, maps: ArrayLike) -> Curve:
+    # Every threshold on the anomaly map gives one point: the share of normal pixels it
+    # flags (x) against how much of each defect region it covers, on average (y).
+    # The curve has one point per pixel value (millions); 1001 points draw the same line.
+    # It starts at (0, 0) and first climbs straight up, so that point is kept as it is.
+    fpr, pro = pro_curve(masks, maps)
+    grid = np.linspace(0, 1, 1001)
+    return np.concatenate([[0.0], grid]), np.concatenate([[0.0], np.interp(grid, fpr, pro)])
+
+
+def roc_figure(labels: ArrayLike, scores: ArrayLike) -> Figure:
+    fpr, tpr = roc_points(labels, scores)
     return curve_figure(
         fpr,
         tpr,
@@ -45,16 +63,11 @@ def roc_figure(labels: ArrayLike, scores: ArrayLike) -> Figure:
 
 
 def pro_figure(masks: ArrayLike, maps: ArrayLike, fpr_limit: float = 0.3) -> Figure:
-    # Every threshold on the anomaly map gives one point: the share of normal pixels it
-    # flags (x) against how much of each defect region it covers, on average (y).
     # AUPRO is the area under the curve left of fpr_limit, so that part is shaded.
-    fpr, pro = pro_curve(masks, maps)
-    # The curve has one point per pixel value (millions); 1001 points draw the same line.
-    # It starts at (0, 0) and first climbs straight up, so that point is kept as it is.
-    grid = np.linspace(0, 1, 1001)
+    fpr, pro = pro_points(masks, maps)
     fig = curve_figure(
-        np.concatenate([[0.0], grid]),
-        np.concatenate([[0.0], np.interp(grid, fpr, pro)]),
+        fpr,
+        pro,
         f"PRO curve, AUPRO {aupro(masks, maps, fpr_limit):.3f}",
         "normal pixels flagged (false positive rate)",
         "share of each defect region found (PRO)",

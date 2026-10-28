@@ -16,3 +16,60 @@ stages:
     metrics:
       - reports/data_summary.json:
           cache: false
+
+  # One stage per category: train_patchcore@bottle, @carpet, @screw (categories from params.yaml).
+  # deps list exactly the modules each stage imports (a test checks it). The images themselves are
+  # covered by the manifest, which stores each image's sha1.
+  train_patchcore:
+    foreach: ${data.categories}
+    do:
+      cmd: python -m anomaly_inspector.pipelines.train_patchcore --category ${item}
+      deps:
+        - data/processed/manifest.parquet
+        - src/anomaly_inspector/config.py
+        - src/anomaly_inspector/data/dataset.py
+        - src/anomaly_inspector/preprocessing.py
+        - src/anomaly_inspector/models/backbones.py
+        - src/anomaly_inspector/models/patchcore.py
+        - src/anomaly_inspector/models/storage.py
+        - src/anomaly_inspector/pipelines/train_patchcore.py
+      params:
+        - data.image_size
+        - patchcore
+      outs:
+        - models/patchcore/${item}/model.pt
+
+  evaluate_patchcore:
+    foreach: ${data.categories}
+    do:
+      cmd: python -m anomaly_inspector.pipelines.evaluate_patchcore --category ${item}
+      deps:
+        - models/patchcore/${item}/model.pt
+        - data/processed/manifest.parquet
+        # the masks: unlike the images, they have no hash in the manifest
+        - data/raw/mvtec_ad/${item}/ground_truth
+        - src/anomaly_inspector/config.py
+        - src/anomaly_inspector/data/dataset.py
+        - src/anomaly_inspector/preprocessing.py
+        - src/anomaly_inspector/models/backbones.py
+        - src/anomaly_inspector/models/patchcore.py
+        - src/anomaly_inspector/models/storage.py
+        - src/anomaly_inspector/evaluation
+        - src/anomaly_inspector/pipelines/evaluate_patchcore.py
+      params:
+        - threshold  # the image size comes from model.pt, the size the model was trained at
+      outs:
+        - models/patchcore/${item}/threshold.json
+        - reports/patchcore/${item}/figures
+      metrics:
+        - reports/patchcore/${item}/metrics.json:
+            cache: false
+      plots:
+        - reports/patchcore/${item}/roc.csv:
+            cache: false
+            x: fpr
+            y: tpr
+        - reports/patchcore/${item}/pro.csv:
+            cache: false
+            x: fpr
+            y: pro
