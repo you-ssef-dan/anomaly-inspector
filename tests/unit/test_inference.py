@@ -90,7 +90,19 @@ def test_serving_never_loads_torch() -> None:
     # The API image has no PyTorch: one stray import would crash it at startup.
     code = (
         "import sys\n"
-        "import anomaly_inspector.serving.inference\n"
+        "import anomaly_inspector.serving.app\n"  # the whole API, FastAPI included
         "assert 'torch' not in sys.modules, 'serving loaded torch'\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_a_batch_scores_each_image_as_if_it_came_alone(
+    tiny: tuple[PatchCore, Path], tmp_path: Path
+) -> None:
+    inspector = Inspector(with_metadata(tiny, tmp_path))
+    images = [part(seed=seed) for seed in (1, 2, 3)]
+    together = inspector.predict_batch(images)
+    alone = [inspector.predict(image) for image in images]
+    assert [p.score for p in together] == pytest.approx([p.score for p in alone], abs=1e-5)
+    assert [p.is_anomalous for p in together] == [p.is_anomalous for p in alone]
+    assert len({round(p.score, 6) for p in together}) == 3  # three different images, in order

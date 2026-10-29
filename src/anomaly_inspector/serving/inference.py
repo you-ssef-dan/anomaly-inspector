@@ -5,6 +5,7 @@ needs (threshold, image size, category, version) is read from the ONNX file's me
 by the export stage, so nothing here is hard-coded.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,13 +46,18 @@ class Inspector:
         self.version = metadata["git_sha"]
 
     def predict(self, image: Image.Image) -> Prediction:
-        # The same preprocessing as in training (a golden-file test pins it), batch of one.
-        anomaly_map, score = self.session.run(
-            None, {"image": preprocess(image, self.image_size)[None]}
-        )
-        value = float(score[0])
-        return Prediction(
-            score=value,
-            is_anomalous=value >= self.threshold,
-            anomaly_map=anomaly_map[0, 0].astype(np.float32),
-        )
+        return self.predict_batch([image])[0]
+
+    def predict_batch(self, images: Sequence[Image.Image]) -> list[Prediction]:
+        """Several images in one model call, in the order given."""
+        # The same preprocessing as in training (a golden-file test pins it).
+        batch = np.stack([preprocess(image, self.image_size) for image in images])
+        anomaly_maps, scores = self.session.run(None, {"image": batch})
+        return [
+            Prediction(
+                score=float(score),
+                is_anomalous=float(score) >= self.threshold,
+                anomaly_map=anomaly_map[0].astype(np.float32),
+            )
+            for anomaly_map, score in zip(anomaly_maps, scores, strict=True)
+        ]
