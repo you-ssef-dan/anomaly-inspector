@@ -1,0 +1,9 @@
+# Docker sends the build context (this folder) to the daemon before every build. Everything is
+# left out except what the images copy, so data, .venv and secrets like .env never get in.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!models/patchcore/*/model.onnx
+**/__pycache__
