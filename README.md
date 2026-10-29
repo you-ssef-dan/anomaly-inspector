@@ -8,8 +8,8 @@
 not, and draws a heatmap showing where the defect is.** Built end to end on a CPU laptop, from raw
 images to a tested, versioned pipeline.
 
-> **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline and
-> the ONNX export are done; the API, Docker, CI/CD gates and retraining come next. See the
+> **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline, the
+> ONNX export and the API are done; Docker, CI/CD gates and retraining come next. See the
 > [roadmap](#roadmap).
 
 ## The idea
@@ -160,6 +160,58 @@ versions are timed the same way. Screw:
   the model only, after 5 warm-up calls, 30 timed calls each. All numbers:
   `reports/patchcore/<category>/benchmark.json`.
 
+## The API
+
+A [FastAPI](https://fastapi.tiangolo.com) service answers "is this part defective, and where?". It
+serves the ONNX model with ONNX Runtime, so it needs no PyTorch (a test checks that it never
+loads it), and reads the threshold and image size from the model file.
+
+| Method | Path | Answer |
+| --- | --- | --- |
+| GET | `/health/live` | The process is up |
+| GET | `/health/ready` | The model is loaded (503 until then) |
+| GET | `/v1/model` | Category, threshold, image size, model version |
+| POST | `/v1/predict` | One photo: anomaly score, decision and, with `?heatmap=true`, the heatmap |
+| POST | `/v1/predict/batch` | Up to 8 photos in one model call |
+
+```bash
+API_MODEL_PATH=models/patchcore/screw/model.onnx uv run uvicorn anomaly_inspector.serving.app:app
+curl -F "file=@part.png;type=image/png" localhost:8000/v1/predict   # or open localhost:8000/docs
+```
+
+A photo that is not PNG or JPEG gets a 415, one above 5 MB a 413, one that cannot be decoded a
+422; each error names the file. The model loads once, at startup, and a model without its
+metadata stops the startup. The tests run the endpoints against a fake model, and end to end
+against a small real one; slow tests check the real bottle model (a good part passes, a broken
+one is rejected, a black square pasted on a good part raises its score).
+
+### Load test with Locust
+
+[Locust](https://locust.io) simulates many clients calling the API at the same time and measures
+response times, throughput and errors. Here each simulated user is a camera that sends a screw
+photo from `holdout` about once a second ([`tests/load/locustfile.py`](tests/load/locustfile.py)).
+The API runs on 2 CPU cores, the size of the container in the next phase:
+
+```bash
+API_MODEL_PATH=models/patchcore/screw/model.onnx API_THREADS=1 \
+  taskset -c 0,1 uv run uvicorn anomaly_inspector.serving.app:app --port 8000 --workers 2
+uv run locust -f tests/load/locustfile.py --host http://localhost:8000 \
+  --headless -u 10 -r 2 -t 2m --csv reports/load/w2-t1
+```
+
+| On 2 cores | Cameras | Photos per s | p50 | p95 | Errors |
+| --- | --- | --- | --- | --- | --- |
+| 1 worker × 2 ONNX threads | 10 | 5.8 | 680 ms | 1.1 s | 0 |
+| 2 workers × 1 ONNX thread | 10 | 5.9 | 650 ms | 1.0 s | 0 |
+| 2 workers × 1 ONNX thread | 5 | 3.7 | 320 ms | 480 ms | 0 |
+
+- **2 cores handle about 6 photos per second.** 10 cameras ask for about 10, so photos queue and
+  the median wait doubles. With 5 cameras every photo is served, with a p95 under half a second.
+- **2 workers with 1 thread each** is slightly better than 1 worker with 2 threads, so it is the
+  setting kept. Workers × threads stays at the number of cores, so they never fight over them.
+- A request includes the upload, decoding a 1024 px photo, preprocessing and the model. Intel Core
+  Ultra 5 125H, on mains power. Full numbers: [`reports/load/`](reports/load).
+
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`.
@@ -210,9 +262,10 @@ src/anomaly_inspector/
   evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
   export/            ONNX export with metadata, INT8 quantisation, latency benchmark
   pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise
+  serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
 scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery
 docker/              the MLflow server image (docker-compose.yml runs it with PostgreSQL)
-tests/               unit tests on generated fake data, plus a few slow ones
+tests/               unit and API tests on generated fake data, slow tests, a Locust load test
 notebooks/           exploratory data analysis (no outputs stored in git)
 docs/                data card, experiment findings
 reports/             benchmark and experiment results, charts, heatmap gallery, failure notes
@@ -248,7 +301,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 3 | Experiment tracking and model registry with MLflow | ✅ |
 | 4 | Full DVC pipeline: train, evaluate, export per category | ✅ |
 | 5 | ONNX export, optimisation and quantisation | ✅ |
-| 6 | FastAPI inference service with pytest | ⬜ |
+| 6 | FastAPI inference service with pytest | ✅ |
 | 7 | Docker and a first deployment | ⬜ |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ⬜ |
 | 9 | Retraining and batch inspection with Airflow | ⬜ |
