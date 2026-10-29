@@ -103,3 +103,10 @@ def test_the_promotion_defaults_are_a_200_ms_budget_and_a_small_aupro_tolerance(
 ) -> None:
     promotion = load_params(write_params(tmp_path, MINIMAL)).promotion
     assert (promotion.latency_budget_ms, promotion.aupro_tolerance) == (200, 0.005)
+
+
+def test_the_export_defaults_calibrate_on_100_images_and_time_on_4_threads(
+    tmp_path: Path,
+) -> None:
+    export = load_params(write_params(tmp_path, MINIMAL)).export
+    assert (export.calibration_images, export.threads) == (100, 4)

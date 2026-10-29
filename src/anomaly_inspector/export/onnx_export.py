@@ -48,8 +48,11 @@ class OnnxPatchCore:
     So the evaluation code scores it exactly as it scores the PyTorch model.
     """
 
-    def __init__(self, path: Path) -> None:
-        self.session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+    def __init__(self, path: Path, threads: int | None = None) -> None:
+        options = ort.SessionOptions()
+        if threads is not None:  # fixed for benchmarks; by default ONNX Runtime picks
+            options.intra_op_num_threads = threads
+        self.session = ort.InferenceSession(str(path), options, providers=["CPUExecutionProvider"])
 
     def __call__(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         anomaly_map, score = self.session.run(None, {"image": images.numpy().astype(np.float32)})
