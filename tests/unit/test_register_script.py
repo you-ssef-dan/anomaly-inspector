@@ -1,10 +1,11 @@
-"""register_model.py on the fake project: the pipeline's model goes to the registry, once.
+"""register_model.py on the fake project: the pipeline's ONNX model goes to the registry, once.
 
 The fake project has no DVC repository, so stale_stages is replaced in most tests; the last
 test runs it against a real one.
 """
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -12,13 +13,18 @@ from pathlib import Path
 from types import ModuleType
 
 import mlflow
-import mlflow.pytorch
+import mlflow.onnx
+import onnx
 import pandas as pd
 import pytest
 import yaml
+from torch.utils.data import DataLoader
 
+from anomaly_inspector.data.dataset import ManifestDataset
+from anomaly_inspector.evaluation.evaluate import predict
 from anomaly_inspector.evaluation.metrics import image_auroc
-from anomaly_inspector.pipelines import evaluate_patchcore, train_patchcore
+from anomaly_inspector.export.onnx_export import OnnxPatchCore, read_metadata
+from anomaly_inspector.pipelines import evaluate_patchcore, export_patchcore, train_patchcore
 
 SCRIPT = Path(__file__).parents[2] / "scripts" / "register_model.py"
 
@@ -36,11 +42,11 @@ def script() -> ModuleType:
 
 @pytest.fixture
 def evaluated(fake_project: Path, monkeypatch: pytest.MonkeyPatch, script: ModuleType) -> Path:
-    """The pipeline has run with a server: model.pt exists and its evaluation is a run."""
+    """The pipeline has run with a server: the evaluation is a run, and model.onnx exists."""
     monkeypatch.setenv("MLFLOW_TRACKING_URI", f"sqlite:///{fake_project / 'store.db'}")
     monkeypatch.setattr(script, "stale_stages", lambda target: [])
-    train_patchcore.main(["--category", "bottle"])
-    evaluate_patchcore.main(["--category", "bottle"])
+    for stage in (train_patchcore, evaluate_patchcore, export_patchcore):
+        stage.main(["--category", "bottle"])
     return fake_project
 
 
@@ -49,26 +55,63 @@ def the_evaluation() -> mlflow.entities.Run:
     return run
 
 
-def test_the_model_joins_the_run_that_evaluated_it_and_becomes_champion(
-    script: ModuleType, evaluated: Path
+def test_the_onnx_model_joins_the_run_that_evaluated_it_and_becomes_champion(
+    script: ModuleType, evaluated: Path, tmp_path: Path
 ) -> None:
     assert script.register("bottle") == "1"
 
     client = mlflow.MlflowClient()
     run = the_evaluation()
-    assert client.get_model_version("patchcore-bottle", "1").run_id == run.info.run_id
+    version = client.get_model_version("patchcore-bottle", "1")
+    assert version.run_id == run.info.run_id
+    assert version.tags == {"format": "onnx"}
     assert client.get_registered_model("patchcore-bottle").aliases == {
         "champion": 1,
         "challenger": 1,
     }
-    # The champion, loaded fresh from the store, gives back the logged holdout AUROC.
-    model = mlflow.pytorch.load_model("models:/patchcore-bottle@champion")
+    exported = json.loads(Path("reports/patchcore/bottle/export.json").read_text())
+    logged = mlflow.get_run(run.info.run_id).data.metrics
+    assert logged["onnx_image_auroc"] == pytest.approx(exported["onnx_image_auroc"])
+
+    # The champion, loaded fresh from the store: the ONNX file with its metadata, and it gives
+    # back the logged holdout AUROC.
+    path = tmp_path / "champion.onnx"
+    onnx.save(mlflow.onnx.load_model("models:/patchcore-bottle@champion"), str(path))
+    assert read_metadata(path) == read_metadata(export_patchcore.onnx_path("bottle"))
     rows = pd.read_parquet("data/processed/manifest.parquet")
     holdout = rows[(rows["category"] == "bottle") & (rows["split"] == "holdout")]
-    scores = evaluate_patchcore.score(model, holdout, 64).scores
+    loader = DataLoader(ManifestDataset(holdout, 64), batch_size=8)
+    scores = predict(OnnxPatchCore(path), loader).scores
     assert image_auroc(holdout["label"].to_numpy(), scores) == pytest.approx(
-        run.data.metrics["holdout_image_auroc"]
+        logged["holdout_image_auroc"]
     )
+
+
+def test_an_older_pytorch_version_of_the_same_run_does_not_count(
+    script: ModuleType, evaluated: Path
+) -> None:
+    # Phase 3 and 4 registered the PyTorch model from the same runs, with no format tag.
+    client, run = mlflow.MlflowClient(), the_evaluation()
+    client.create_registered_model("patchcore-bottle")
+    client.create_model_version("patchcore-bottle", f"{run.info.artifact_uri}/old", run.info.run_id)
+
+    assert script.register("bottle") == "2"
+    assert client.get_model_version("patchcore-bottle", "2").tags == {"format": "onnx"}
+    assert script.register("bottle") == "2"  # and only once
+
+
+def test_the_pipeline_must_be_fresh_up_to_the_export(
+    script: ModuleType, evaluated: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[str] = []
+
+    def stale_stages(target: str) -> list[str]:
+        asked.append(target)
+        return []
+
+    monkeypatch.setattr(script, "stale_stages", stale_stages)
+    script.register("bottle")
+    assert asked == ["export_patchcore@bottle"]
 
 
 def test_registering_twice_creates_one_version(script: ModuleType, evaluated: Path) -> None:
