@@ -8,8 +8,8 @@
 not, and draws a heatmap showing where the defect is.** Built end to end on a CPU laptop, from raw
 images to a tested, versioned pipeline.
 
-> **Status: work in progress.** Data, models, metrics and experiment tracking are done; the
-> training pipeline, ONNX, the API, Docker, CI/CD gates and retraining come next. See the
+> **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline and
+> the ONNX export are done; the API, Docker, CI/CD gates and retraining come next. See the
 > [roadmap](#roadmap).
 
 ## The idea
@@ -35,9 +35,9 @@ Dataset: [MVTec AD](https://www.mvtec.com/research-teaching/datasets/mvtec-ad), 
 
 | Holdout | Images (good + defective) | Image AUROC | Pixel AUROC | AUPRO | ms per image |
 | --- | --- | --- | --- | --- | --- |
-| Bottle | 10 + 32 | 1.0000 | 0.9862 | 0.9410 | 100 |
-| Carpet | 14 + 45 | 0.9873 | 0.9896 | 0.9420 | 113 |
-| Screw | 21 + 59 | 0.8918 | 0.9778 | 0.8852 | 115 |
+| Bottle | 10 + 32 | 1.0000 | 0.9862 | 0.9410 | 99 |
+| Carpet | 14 + 45 | 0.9873 | 0.9896 | 0.9420 | 104 |
+| Screw | 21 + 59 | 0.8918 | 0.9778 | 0.8852 | 107 |
 
 - **AUPRO** counts every defect region equally, however small, so it is the metric that cares about
   tiny defects. Screw is the hard category: tiny defects on parts lying at any angle.
@@ -110,7 +110,7 @@ traced back to what produced it:
 | Params | every value of `params.yaml` |
 | Metrics | holdout image AUROC, pixel AUROC, AUPRO, ms per image; CPU and RAM over time |
 | Artifacts | `threshold.json`, ROC and PRO curves, the holdout failure gallery |
-| Model | registered as a new version of `patchcore-<category>` by `scripts/register_model.py`, outside the pipeline, so re-running a stage never adds a version |
+| Model | the ONNX file that serves, registered as a new version of `patchcore-<category>` by `scripts/register_model.py`, outside the pipeline, so re-running a stage never adds a version |
 
 **Promotion is code, not a click.** Each new version becomes the `challenger`.
 [`should_promote`](src/anomaly_inspector/registry.py) makes it the `champion` only if it was trained
@@ -132,6 +132,33 @@ And how many good images a new line needs (3 random subsets per count): with 1 t
 stays below 0.73; with 50 it is 0.845 to 0.882 (all 230 images: 0.865).
 
 ![AUPRO against the number of good training images, in MLflow](reports/figures/mlflow_images.png)
+
+## From PyTorch to ONNX
+
+The pipeline exports each model to [ONNX](https://onnx.ai): one file that runs in ONNX Runtime
+without PyTorch, and carries its own threshold, image size, category and git SHA. The export
+stage scores the ONNX model on `holdout` and fails if it differs from PyTorch by 0.001 or more;
+it doesn't (same image AUROC, AUPRO within 0.0000003).
+
+A second stage tries **INT8**: the convolutions are stored and computed in 8 bits, calibrated on
+100 good `train` images; the distances to the memory bank stay in 32-bit floats. Then all three
+versions are timed the same way. Screw:
+
+| Screw | ms per image, batch 1 (p50 / p95) | Images per s, batch 8 | File | Image AUROC | AUPRO |
+| --- | --- | --- | --- | --- | --- |
+| PyTorch FP32 | 108 / 127 | 8.5 | 114 MB | 0.8918 | 0.8852 |
+| ONNX Runtime FP32 | 90 / 93 | 11.2 | 114 MB | 0.8918 | 0.8852 |
+| ONNX Runtime INT8 | 77 / 78 | 13.3 | 40 MB | 0.8870 | **0.8538** |
+
+- **ONNX FP32 is free speed**: identical scores, about 1.2× faster per image, a much steadier p95,
+  and a third more images per second in batches. The same holds for bottle and carpet.
+- **INT8 is 3× smaller and about 15% faster again, but it blurs the heatmap.** It still tells good
+  from defective parts (image AUROC within 0.005), yet AUPRO drops on every category: screw 0.885 →
+  0.854, bottle 0.941 → 0.764, carpet 0.942 → **0.550**. The heatmap is half of what this system
+  delivers, so **the FP32 ONNX model is the one that serves**; INT8 stays a measured option.
+- Intel Core Ultra 5 125H, 4 threads for every version, on mains power with nothing else running;
+  the model only, after 5 warm-up calls, 30 timed calls each. All numbers:
+  `reports/patchcore/<category>/benchmark.json`.
 
 ## Quick start
 
@@ -181,7 +208,8 @@ src/anomaly_inspector/
   models/            PatchCore, STFPM, backbones
   training/          STFPM training loop (seeded, early stopping, best checkpoint)
   evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
-  pipelines/         one entry point per DVC stage: prepare, then train and evaluate PatchCore
+  export/            ONNX export with metadata, INT8 quantisation, latency benchmark
+  pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise
 scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery
 docker/              the MLflow server image (docker-compose.yml runs it with PostgreSQL)
 tests/               unit tests on generated fake data, plus a few slow ones
@@ -218,8 +246,8 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 1 | Data and DVC: manifest, validation, splits, preprocessing, EDA, data card | ✅ |
 | 2 | Models in PyTorch: PatchCore, STFPM, metrics, anomalib benchmark, experiments, heatmap gallery | 🚧 |
 | 3 | Experiment tracking and model registry with MLflow | ✅ |
-| 4 | Full DVC pipeline: train, evaluate, export per category | ⬜ |
-| 5 | ONNX export, optimisation and quantisation | ⬜ |
+| 4 | Full DVC pipeline: train, evaluate, export per category | ✅ |
+| 5 | ONNX export, optimisation and quantisation | ✅ |
 | 6 | FastAPI inference service with pytest | ⬜ |
 | 7 | Docker and a first deployment | ⬜ |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ⬜ |

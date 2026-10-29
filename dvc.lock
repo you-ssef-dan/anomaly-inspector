@@ -10,8 +10,8 @@ stages:
       nfiles: 1286
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/manifest.py
       hash: md5
       md5: a1b2aab466924496f291d53c82c62e79
@@ -57,8 +57,8 @@ stages:
       size: 57469
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -104,8 +104,8 @@ stages:
       size: 57469
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -151,8 +151,8 @@ stages:
       size: 57469
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -208,8 +208,8 @@ stages:
       size: 109121571
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -261,8 +261,8 @@ stages:
       nfiles: 4
     - path: reports/patchcore/bottle/metrics.json
       hash: md5
-      md5: 516daef7444e64c9b0d82dbf936fd8c9
-      size: 163
+      md5: e93fe2f269b714b56b6f7a9aa77ba40c
+      size: 161
     - path: reports/patchcore/bottle/pro.csv
       hash: md5
       md5: 5964ed8100bad9cfcbc0c653c27d02a1
@@ -290,8 +290,8 @@ stages:
       size: 112328739
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -343,7 +343,7 @@ stages:
       nfiles: 4
     - path: reports/patchcore/carpet/metrics.json
       hash: md5
-      md5: 7d92634f1d6863f0aeec7239aa2a6223
+      md5: 3c4fd8f76251e5c46075fee3acf6cc1a
       size: 177
     - path: reports/patchcore/carpet/pro.csv
       hash: md5
@@ -372,8 +372,8 @@ stages:
       size: 114153507
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -425,7 +425,7 @@ stages:
       nfiles: 4
     - path: reports/patchcore/screw/metrics.json
       hash: md5
-      md5: 95472f765f6a33a10aefa425a4c5f4f6
+      md5: 86b5148bbcf529d044c3e7d6677e7c0c
       size: 178
     - path: reports/patchcore/screw/pro.csv
       hash: md5
@@ -458,12 +458,12 @@ stages:
       size: 235
     - path: reports/patchcore/bottle/metrics.json
       hash: md5
-      md5: 516daef7444e64c9b0d82dbf936fd8c9
-      size: 163
+      md5: e93fe2f269b714b56b6f7a9aa77ba40c
+      size: 161
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -478,8 +478,8 @@ stages:
       size: 3482
     - path: src/anomaly_inspector/export/onnx_export.py
       hash: md5
-      md5: f15990f873eefbcf296942ab55f4ff6f
-      size: 2080
+      md5: 4c5711d2115f512742eac69037f8fa4f
+      size: 2294
     - path: src/anomaly_inspector/models/backbones.py
       hash: md5
       md5: 02722517ecc4486062f29ac2a8700de6
@@ -507,11 +507,11 @@ stages:
     outs:
     - path: models/patchcore/bottle/model.onnx
       hash: md5
-      md5: 2bfb8f2bae0521dc284e352b43abe8b7
+      md5: 278d44e8f5d9020fdaa8c4098a3a18f8
       size: 108971184
     - path: reports/patchcore/bottle/export.json
       hash: md5
-      md5: 03fa4e55237729c04b58b13ac2e280c3
+      md5: bc3dcd746903253e94e8ff0b75d69a9e
       size: 201
   export_patchcore@carpet:
     cmd: python -m anomaly_inspector.pipelines.export_patchcore --category 
@@ -536,12 +536,12 @@ stages:
       size: 235
     - path: reports/patchcore/carpet/metrics.json
       hash: md5
-      md5: 7d92634f1d6863f0aeec7239aa2a6223
+      md5: 3c4fd8f76251e5c46075fee3acf6cc1a
       size: 177
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -556,8 +556,8 @@ stages:
       size: 3482
     - path: src/anomaly_inspector/export/onnx_export.py
       hash: md5
-      md5: f15990f873eefbcf296942ab55f4ff6f
-      size: 2080
+      md5: 4c5711d2115f512742eac69037f8fa4f
+      size: 2294
     - path: src/anomaly_inspector/models/backbones.py
       hash: md5
       md5: 02722517ecc4486062f29ac2a8700de6
@@ -585,12 +585,12 @@ stages:
     outs:
     - path: models/patchcore/carpet/model.onnx
       hash: md5
-      md5: 575452597261e99bac3185c0e3dae183
+      md5: d468bd2c6c818b06d7adf796944dd8eb
       size: 112178352
     - path: reports/patchcore/carpet/export.json
       hash: md5
-      md5: 02b727bc9a464d751ed178374842f430
-      size: 231
+      md5: 984380d1405e6ec7b425ce0daf66acbe
+      size: 230
   export_patchcore@screw:
     cmd: python -m anomaly_inspector.pipelines.export_patchcore --category screw
     deps:
@@ -613,12 +613,12 @@ stages:
       size: 235
     - path: reports/patchcore/screw/metrics.json
       hash: md5
-      md5: 95472f765f6a33a10aefa425a4c5f4f6
+      md5: 86b5148bbcf529d044c3e7d6677e7c0c
       size: 178
     - path: src/anomaly_inspector/config.py
       hash: md5
-      md5: 32c977796d1f42fc61f9b125cb0af624
-      size: 2298
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
     - path: src/anomaly_inspector/data/dataset.py
       hash: md5
       md5: eb409b3732020258bb0d2e72e0fdf118
@@ -633,8 +633,8 @@ stages:
       size: 3482
     - path: src/anomaly_inspector/export/onnx_export.py
       hash: md5
-      md5: f15990f873eefbcf296942ab55f4ff6f
-      size: 2080
+      md5: 4c5711d2115f512742eac69037f8fa4f
+      size: 2294
     - path: src/anomaly_inspector/models/backbones.py
       hash: md5
       md5: 02722517ecc4486062f29ac2a8700de6
@@ -662,9 +662,270 @@ stages:
     outs:
     - path: models/patchcore/screw/model.onnx
       hash: md5
-      md5: 83b77f982e133ae84a273e65598b7713
+      md5: b084bc623d94879d694332369759a0e8
       size: 114003119
     - path: reports/patchcore/screw/export.json
       hash: md5
-      md5: 404239b00a9755e1bbdf551078f6d090
-      size: 232
+      md5: 3efaa6e995b48001a431ff9db9b2d5a2
+      size: 233
+  optimize_patchcore@bottle:
+    cmd: python -m anomaly_inspector.pipelines.optimize_patchcore --category 
+      bottle
+    deps:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 9b6ab4999e1f04ef99132d487a0ca50c
+      size: 57469
+    - path: data/raw/mvtec_ad/bottle/ground_truth
+      hash: md5
+      md5: ed9f7d18a4129fd2b9f9fbb921a9773a.dir
+      size: 223695
+      nfiles: 63
+    - path: models/patchcore/bottle/model.onnx
+      hash: md5
+      md5: 278d44e8f5d9020fdaa8c4098a3a18f8
+      size: 108971184
+    - path: models/patchcore/bottle/model.pt
+      hash: md5
+      md5: 94bd4ecdc352b3f59ba18a5a7ad683f7
+      size: 109121571
+    - path: reports/patchcore/bottle/export.json
+      hash: md5
+      md5: bc3dcd746903253e94e8ff0b75d69a9e
+      size: 201
+    - path: src/anomaly_inspector/config.py
+      hash: md5
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
+    - path: src/anomaly_inspector/data/dataset.py
+      hash: md5
+      md5: eb409b3732020258bb0d2e72e0fdf118
+      size: 962
+    - path: src/anomaly_inspector/evaluation/evaluate.py
+      hash: md5
+      md5: 018f305502bfc3925296af14283253ef
+      size: 2670
+    - path: src/anomaly_inspector/evaluation/metrics.py
+      hash: md5
+      md5: 6d007da13320caedd9f31c8961d21383
+      size: 3482
+    - path: src/anomaly_inspector/export/benchmark.py
+      hash: md5
+      md5: 6dc9e1aefdea12d5a8df3995a6b7258c
+      size: 1118
+    - path: src/anomaly_inspector/export/onnx_export.py
+      hash: md5
+      md5: 4c5711d2115f512742eac69037f8fa4f
+      size: 2294
+    - path: src/anomaly_inspector/export/quantize.py
+      hash: md5
+      md5: 750d7390da061a93855cac65aa6499f6
+      size: 2194
+    - path: src/anomaly_inspector/models/backbones.py
+      hash: md5
+      md5: 02722517ecc4486062f29ac2a8700de6
+      size: 864
+    - path: src/anomaly_inspector/models/patchcore.py
+      hash: md5
+      md5: bd901a31403309daa0a2c2cb8943c8aa
+      size: 5085
+    - path: src/anomaly_inspector/models/storage.py
+      hash: md5
+      md5: 5d28c3f6584d36917cfc34d84ad77c71
+      size: 1604
+    - path: src/anomaly_inspector/pipelines/optimize_patchcore.py
+      hash: md5
+      md5: f146700c111b9bf0f70f7061cb9c2a27
+      size: 4582
+    - path: src/anomaly_inspector/preprocessing.py
+      hash: md5
+      md5: a491d031e52487993d9456332b4ab7d9
+      size: 878
+    params:
+      params.yaml:
+        export:
+          calibration_images: 100
+          threads: 4
+    outs:
+    - path: models/patchcore/bottle/model.int8.onnx
+      hash: md5
+      md5: 3ec531ff1dac91fac97edf2af9424cb3
+      size: 34701358
+    - path: reports/patchcore/bottle/benchmark.json
+      hash: md5
+      md5: 378f2273e8adb68f173d79c0f9d4af97
+      size: 672
+  optimize_patchcore@carpet:
+    cmd: python -m anomaly_inspector.pipelines.optimize_patchcore --category 
+      carpet
+    deps:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 9b6ab4999e1f04ef99132d487a0ca50c
+      size: 57469
+    - path: data/raw/mvtec_ad/carpet/ground_truth
+      hash: md5
+      md5: 72425c80d4de400e62689a89170b2ed5.dir
+      size: 293695
+      nfiles: 89
+    - path: models/patchcore/carpet/model.onnx
+      hash: md5
+      md5: d468bd2c6c818b06d7adf796944dd8eb
+      size: 112178352
+    - path: models/patchcore/carpet/model.pt
+      hash: md5
+      md5: 3f2bb24ee3bfc528014400f145a6e9a2
+      size: 112328739
+    - path: reports/patchcore/carpet/export.json
+      hash: md5
+      md5: 984380d1405e6ec7b425ce0daf66acbe
+      size: 230
+    - path: src/anomaly_inspector/config.py
+      hash: md5
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
+    - path: src/anomaly_inspector/data/dataset.py
+      hash: md5
+      md5: eb409b3732020258bb0d2e72e0fdf118
+      size: 962
+    - path: src/anomaly_inspector/evaluation/evaluate.py
+      hash: md5
+      md5: 018f305502bfc3925296af14283253ef
+      size: 2670
+    - path: src/anomaly_inspector/evaluation/metrics.py
+      hash: md5
+      md5: 6d007da13320caedd9f31c8961d21383
+      size: 3482
+    - path: src/anomaly_inspector/export/benchmark.py
+      hash: md5
+      md5: 6dc9e1aefdea12d5a8df3995a6b7258c
+      size: 1118
+    - path: src/anomaly_inspector/export/onnx_export.py
+      hash: md5
+      md5: 4c5711d2115f512742eac69037f8fa4f
+      size: 2294
+    - path: src/anomaly_inspector/export/quantize.py
+      hash: md5
+      md5: 750d7390da061a93855cac65aa6499f6
+      size: 2194
+    - path: src/anomaly_inspector/models/backbones.py
+      hash: md5
+      md5: 02722517ecc4486062f29ac2a8700de6
+      size: 864
+    - path: src/anomaly_inspector/models/patchcore.py
+      hash: md5
+      md5: bd901a31403309daa0a2c2cb8943c8aa
+      size: 5085
+    - path: src/anomaly_inspector/models/storage.py
+      hash: md5
+      md5: 5d28c3f6584d36917cfc34d84ad77c71
+      size: 1604
+    - path: src/anomaly_inspector/pipelines/optimize_patchcore.py
+      hash: md5
+      md5: f146700c111b9bf0f70f7061cb9c2a27
+      size: 4582
+    - path: src/anomaly_inspector/preprocessing.py
+      hash: md5
+      md5: a491d031e52487993d9456332b4ab7d9
+      size: 878
+    params:
+      params.yaml:
+        export:
+          calibration_images: 100
+          threads: 4
+    outs:
+    - path: models/patchcore/carpet/model.int8.onnx
+      hash: md5
+      md5: 30ac5edeb8b31fc54fb937a043bf2c88
+      size: 37910627
+    - path: reports/patchcore/carpet/benchmark.json
+      hash: md5
+      md5: 7ae0f35f8e90e2559d6e2c82d0c66b78
+      size: 719
+  optimize_patchcore@screw:
+    cmd: python -m anomaly_inspector.pipelines.optimize_patchcore --category 
+      screw
+    deps:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 9b6ab4999e1f04ef99132d487a0ca50c
+      size: 57469
+    - path: data/raw/mvtec_ad/screw/ground_truth
+      hash: md5
+      md5: 4d76f59c45a42b73612892619b37f330.dir
+      size: 336063
+      nfiles: 119
+    - path: models/patchcore/screw/model.onnx
+      hash: md5
+      md5: b084bc623d94879d694332369759a0e8
+      size: 114003119
+    - path: models/patchcore/screw/model.pt
+      hash: md5
+      md5: 5975a6075f5c819ac72d636a2f41d67b
+      size: 114153507
+    - path: reports/patchcore/screw/export.json
+      hash: md5
+      md5: 3efaa6e995b48001a431ff9db9b2d5a2
+      size: 233
+    - path: src/anomaly_inspector/config.py
+      hash: md5
+      md5: 87285203a28a60af5e1c4efa80c56532
+      size: 2663
+    - path: src/anomaly_inspector/data/dataset.py
+      hash: md5
+      md5: eb409b3732020258bb0d2e72e0fdf118
+      size: 962
+    - path: src/anomaly_inspector/evaluation/evaluate.py
+      hash: md5
+      md5: 018f305502bfc3925296af14283253ef
+      size: 2670
+    - path: src/anomaly_inspector/evaluation/metrics.py
+      hash: md5
+      md5: 6d007da13320caedd9f31c8961d21383
+      size: 3482
+    - path: src/anomaly_inspector/export/benchmark.py
+      hash: md5
+      md5: 6dc9e1aefdea12d5a8df3995a6b7258c
+      size: 1118
+    - path: src/anomaly_inspector/export/onnx_export.py
+      hash: md5
+      md5: 4c5711d2115f512742eac69037f8fa4f
+      size: 2294
+    - path: src/anomaly_inspector/export/quantize.py
+      hash: md5
+      md5: 750d7390da061a93855cac65aa6499f6
+      size: 2194
+    - path: src/anomaly_inspector/models/backbones.py
+      hash: md5
+      md5: 02722517ecc4486062f29ac2a8700de6
+      size: 864
+    - path: src/anomaly_inspector/models/patchcore.py
+      hash: md5
+      md5: bd901a31403309daa0a2c2cb8943c8aa
+      size: 5085
+    - path: src/anomaly_inspector/models/storage.py
+      hash: md5
+      md5: 5d28c3f6584d36917cfc34d84ad77c71
+      size: 1604
+    - path: src/anomaly_inspector/pipelines/optimize_patchcore.py
+      hash: md5
+      md5: f146700c111b9bf0f70f7061cb9c2a27
+      size: 4582
+    - path: src/anomaly_inspector/preprocessing.py
+      hash: md5
+      md5: a491d031e52487993d9456332b4ab7d9
+      size: 878
+    params:
+      params.yaml:
+        export:
+          calibration_images: 100
+          threads: 4
+    outs:
+    - path: models/patchcore/screw/model.int8.onnx
+      hash: md5
+      md5: 241da03df8a87051b72fdb997beeddf1
+      size: 39736571
+    - path: reports/patchcore/screw/benchmark.json
+      hash: md5
+      md5: ddb295fb085e7492f46524aff2f66429
+      size: 719
