@@ -13,10 +13,11 @@ import yaml
 
 from anomaly_inspector.config import load_params
 from anomaly_inspector.evaluation import thresholds
+from anomaly_inspector.export.onnx_export import read_metadata
 from anomaly_inspector.models.storage import load_patchcore
-from anomaly_inspector.pipelines import evaluate_patchcore, train_patchcore
+from anomaly_inspector.pipelines import evaluate_patchcore, export_patchcore, train_patchcore
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
-from anomaly_inspector.tracking import md5_of
+from anomaly_inspector.tracking import git_sha, md5_of
 
 MODEL = Path("models/patchcore/bottle/model.pt")
 
@@ -199,3 +200,35 @@ def test_with_a_server_the_evaluation_is_a_run_tagged_with_its_model(
     # Registering is not the stage's job: re-running it must never add a registry version.
     assert mlflow.search_logged_models(output_format="list") == []
     assert mlflow.MlflowClient().search_registered_models() == []
+
+
+def test_export_writes_an_onnx_model_that_scores_like_pytorch(fake_project: Path) -> None:
+    train_patchcore.main(["--category", "bottle"])
+    evaluate_patchcore.main(["--category", "bottle"])
+    export_patchcore.main(["--category", "bottle"])
+
+    path = export_patchcore.onnx_path("bottle")
+    threshold = json.loads(Outputs.for_category("bottle").threshold.read_text())["threshold"]
+    assert read_metadata(path) == {
+        "category": "bottle",
+        "image_size": "64",  # from model.pt, the size the model was trained at
+        "threshold": str(threshold),
+        "git_sha": git_sha(),
+    }
+    report = json.loads(export_patchcore.report_path("bottle").read_text())
+    for name in ("image_auroc", "aupro"):
+        assert report[f"onnx_{name}"] == pytest.approx(report[f"pytorch_{name}"], abs=1e-3)
+    metrics = json.loads(Outputs.for_category("bottle").metrics.read_text())
+    assert report["pytorch_aupro"] == metrics["holdout_aupro"]
+    assert report["onnx_mb"] == pytest.approx(path.stat().st_size / 1e6)
+
+
+def test_export_fails_when_onnx_scores_differently(fake_project: Path) -> None:
+    train_patchcore.main(["--category", "bottle"])
+    evaluate_patchcore.main(["--category", "bottle"])
+    metrics_path = Outputs.for_category("bottle").metrics
+    metrics = json.loads(metrics_path.read_text())
+    metrics["holdout_aupro"] += 0.002  # as if PyTorch had scored differently
+    metrics_path.write_text(json.dumps(metrics))
+    with pytest.raises(ValueError, match="scores differently"):
+        export_patchcore.main(["--category", "bottle"])

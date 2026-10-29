@@ -13,6 +13,7 @@ import pytest
 import yaml
 
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
+from anomaly_inspector.pipelines.export_patchcore import onnx_path, report_path
 from anomaly_inspector.pipelines.train_patchcore import model_path
 
 REPO = Path(__file__).parents[2]
@@ -82,9 +83,17 @@ def test_the_stage_outputs_are_where_the_code_writes() -> None:
     assert paths(evaluate["plots"]) == {str(out.roc), str(out.pro)}
     assert str(model_path(CATEGORY)) in paths(evaluate["deps"])  # it scores what train saved
 
+    export = definition(STAGES["export_patchcore"])
+    assert paths(export["outs"]) == {str(onnx_path(CATEGORY))}
+    assert paths(export["metrics"]) == {str(report_path(CATEGORY))}
+    # It exports what train saved, with the threshold and metrics evaluate wrote.
+    assert {str(model_path(CATEGORY)), str(out.threshold), str(out.metrics)} <= paths(
+        export["deps"]
+    )
+
 
 def test_every_category_gets_its_stages() -> None:
     params = yaml.safe_load((REPO / "params.yaml").read_text())
-    for name in ("train_patchcore", "evaluate_patchcore"):
+    for name in ("train_patchcore", "evaluate_patchcore", "export_patchcore"):
         assert STAGES[name]["foreach"] == "${data.categories}"
     assert params["data"]["categories"] == ["bottle", "carpet", "screw"]
