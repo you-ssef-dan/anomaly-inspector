@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 import yaml
 
+from anomaly_inspector.pipelines import optimize_patchcore
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
 from anomaly_inspector.pipelines.export_patchcore import onnx_path, report_path
 from anomaly_inspector.pipelines.train_patchcore import model_path
@@ -91,9 +92,14 @@ def test_the_stage_outputs_are_where_the_code_writes() -> None:
         export["deps"]
     )
 
+    optimize = definition(STAGES["optimize_patchcore"])
+    assert paths(optimize["outs"]) == {str(optimize_patchcore.int8_path(CATEGORY))}
+    assert paths(optimize["metrics"]) == {str(optimize_patchcore.report_path(CATEGORY))}
+    assert {str(onnx_path(CATEGORY)), str(report_path(CATEGORY))} <= paths(optimize["deps"])
+
 
 def test_every_category_gets_its_stages() -> None:
     params = yaml.safe_load((REPO / "params.yaml").read_text())
-    for name in ("train_patchcore", "evaluate_patchcore", "export_patchcore"):
+    for name in ("train_patchcore", "evaluate_patchcore", "export_patchcore", "optimize_patchcore"):
         assert STAGES[name]["foreach"] == "${data.categories}"
     assert params["data"]["categories"] == ["bottle", "carpet", "screw"]

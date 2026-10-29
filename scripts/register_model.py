@@ -6,10 +6,12 @@
 Registering stays out of dvc.yaml on purpose: stages turn files into files, so re-running one
 never creates a registry version. Later, Airflow or CI calls this script.
 
-It refuses when the category's stages are out of date (the model would not match the code and
-params), or when no MLflow run evaluated this exact model file (found by its md5). Otherwise it
-logs the model into that run, registers it as the next version of patchcore-<category>, and lets
-registry.promote decide between challenger and champion. Running it twice registers once.
+It registers model.onnx, the file the API serves, with its threshold and image size inside. It
+refuses when the category's stages are out of date (the model would not match the code and
+params), or when no MLflow run evaluated this model (found by the md5 of model.pt, which the ONNX
+file was exported from). Otherwise it logs the ONNX model into that run, registers it as the next
+version of patchcore-<category>, and lets registry.promote decide between challenger and
+champion. Running it twice registers once.
 """
 
 import argparse
@@ -20,16 +22,17 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import mlflow
-import mlflow.pytorch
+import mlflow.onnx
+import onnx
 from mlflow import MlflowClient
 from mlflow.entities import Run
 
 from anomaly_inspector.config import load_params
-from anomaly_inspector.models.storage import load_patchcore
 from anomaly_inspector.registry import promote
 from anomaly_inspector.tracking import md5_of, tracking_uri
 
 EXPERIMENT = "patchcore"
+FORMAT_TAG = ("format", "onnx")  # on every version this script registers
 
 
 class RegistrationError(RuntimeError):
@@ -70,34 +73,39 @@ def evaluation_run(category: str, model_md5: str) -> Run:
 def register(category: str) -> str:
     """Register the category's model and run the promotion. Returns the version number."""
     tracking_uri()  # refuses to go on without a server
-    stale = stale_stages(f"evaluate_patchcore@{category}")
+    stale = stale_stages(f"export_patchcore@{category}")
     if stale:
         raise RegistrationError(
             f"out of date: {', '.join(stale)}. Run `uv run --env-file .env dvc repro` first, "
             "so the model matches the committed code and params."
         )
 
-    model_file = Path("models/patchcore") / category / "model.pt"
-    run = evaluation_run(category, md5_of(model_file))
+    models, reports = Path("models/patchcore") / category, Path("reports/patchcore") / category
+    run = evaluation_run(category, md5_of(models / "model.pt"))
     client, name = MlflowClient(), f"patchcore-{category}"
 
-    # Already registered from this run: say so and change nothing (the aliases included).
+    # This run's ONNX model is already registered: say so and change nothing (aliases included).
+    # Older versions of the same run hold the PyTorch model; they do not count.
     run_id = run.info.run_id
     for existing in client.search_model_versions(f"name = '{name}' and run_id = '{run_id}'"):
-        print(f"{name}: already registered from run {run_id} as version {existing.version}")
-        return str(existing.version)
+        if existing.tags.get(FORMAT_TAG[0]) == FORMAT_TAG[1]:
+            print(f"{name}: already registered from run {run_id} as version {existing.version}")
+            return str(existing.version)
 
     # The model goes into the run that evaluated it, so the version carries that run's
-    # metrics and tags, which is what promotion judges. "pickle": MLflow's default "pt2"
-    # format cannot save a model that returns two tensors. From Phase 5 we log ONNX instead.
+    # metrics and tags, which is what promotion judges. The export stage's check (ONNX and
+    # PyTorch agree on holdout) goes with it.
+    exported = json.loads((reports / "export.json").read_text())
     with mlflow.start_run(run_id=run_id):
-        info = mlflow.pytorch.log_model(
-            load_patchcore(model_file).model,
+        mlflow.log_metrics({k: v for k, v in exported.items() if k.startswith("onnx_")})
+        info = mlflow.onnx.log_model(
+            onnx.load(str(models / "model.onnx")),
             name="model",
             registered_model_name=name,
-            serialization_format="pickle",
+            save_as_external_data=False,  # one file, as exported
         )
     version = str(info.registered_model_version)
+    client.set_model_version_tag(name, version, *FORMAT_TAG)
     promoted = promote(client, name, version, load_params().promotion)
     print(f"{name} version {version}: {'champion' if promoted else 'challenger only'}")
     return version

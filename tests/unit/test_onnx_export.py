@@ -70,3 +70,9 @@ def test_a_broken_file_is_refused_before_metadata_is_written(tmp_path: Path) -> 
     path.write_bytes(onnx.ModelProto().SerializeToString())  # no graph, no opset
     with pytest.raises(onnx.checker.ValidationError):
         write_metadata(path, {"category": "bottle"})
+
+
+def test_a_benchmark_can_fix_the_number_of_threads(tiny: tuple[PatchCore, Path]) -> None:
+    _, path = tiny
+    options = OnnxPatchCore(path, threads=2).session.get_session_options()
+    assert options.intra_op_num_threads == 2

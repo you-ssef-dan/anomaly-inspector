@@ -52,11 +52,20 @@ class PromotionConfig(Strict):
     aupro_tolerance: float = Field(0.005, ge=0, lt=1)
 
 
+class ExportConfig(Strict):
+    # Good train images that set the INT8 value ranges (never calib or holdout: no test data
+    # may shape the model).
+    calibration_images: int = Field(100, ge=1)
+    # CPU threads for every speed measurement, so PyTorch and ONNX Runtime compare fairly.
+    threads: int = Field(4, ge=1)
+
+
 class Params(Strict):
     data: DataConfig
     patchcore: PatchcoreConfig = PatchcoreConfig()
     threshold: ThresholdConfig = ThresholdConfig()
     promotion: PromotionConfig = PromotionConfig()
+    export: ExportConfig = ExportConfig()
     stfpm: StfpmConfig = StfpmConfig()
 
 

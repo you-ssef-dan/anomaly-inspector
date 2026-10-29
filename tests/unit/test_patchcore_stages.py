@@ -10,12 +10,20 @@ import pandas as pd
 import pytest
 import torch
 import yaml
+from torch.utils.data import DataLoader
 
 from anomaly_inspector.config import load_params
+from anomaly_inspector.data.dataset import ManifestDataset
 from anomaly_inspector.evaluation import thresholds
-from anomaly_inspector.export.onnx_export import read_metadata
+from anomaly_inspector.evaluation.evaluate import evaluate, load_masks, predict
+from anomaly_inspector.export.onnx_export import OnnxPatchCore, read_metadata
 from anomaly_inspector.models.storage import load_patchcore
-from anomaly_inspector.pipelines import evaluate_patchcore, export_patchcore, train_patchcore
+from anomaly_inspector.pipelines import (
+    evaluate_patchcore,
+    export_patchcore,
+    optimize_patchcore,
+    train_patchcore,
+)
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
 from anomaly_inspector.tracking import git_sha, md5_of
 
@@ -232,3 +240,45 @@ def test_export_fails_when_onnx_scores_differently(fake_project: Path) -> None:
     metrics_path.write_text(json.dumps(metrics))
     with pytest.raises(ValueError, match="scores differently"):
         export_patchcore.main(["--category", "bottle"])
+
+
+def test_optimize_writes_an_int8_model_and_one_speed_table(
+    fake_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for stage in (train_patchcore, evaluate_patchcore, export_patchcore):
+        stage.main(["--category", "bottle"])
+    calibrated_on: list[pd.DataFrame] = []
+    real = optimize_patchcore.calibration_images
+
+    def spy(train: pd.DataFrame, count: int, size: int) -> Any:
+        calibrated_on.append(train)
+        return real(train, count, size)
+
+    monkeypatch.setattr(optimize_patchcore, "calibration_images", spy)
+    optimize_patchcore.main(["--category", "bottle"])
+
+    (rows,) = calibrated_on
+    assert set(rows["split"]) == {"train"}  # never calib or holdout images
+    assert set(rows["category"]) == {"bottle"}
+    assert optimize_patchcore.int8_path("bottle").exists()
+    report = json.loads(optimize_patchcore.report_path("bottle").read_text())
+    exported = json.loads(export_patchcore.report_path("bottle").read_text())
+    assert report["threads"] == 4
+    assert report["pytorch_fp32"]["aupro"] == exported["pytorch_aupro"]
+    assert report["onnx_fp32"]["image_auroc"] == exported["onnx_image_auroc"]
+    # The INT8 accuracy is the INT8 file's own, scored on holdout.
+    holdout = manifest().query("split == 'holdout'")
+    loader = DataLoader(ManifestDataset(holdout, 64), batch_size=8)
+    int8 = OnnxPatchCore(optimize_patchcore.int8_path("bottle"))
+    found = evaluate(holdout["label"].to_numpy(), predict(int8, loader), load_masks(holdout, 64))
+    assert report["onnx_int8"]["aupro"] == pytest.approx(found["aupro"])
+    assert report["onnx_int8"]["image_auroc"] == pytest.approx(found["image_auroc"])
+    for name in ("pytorch_fp32", "onnx_fp32", "onnx_int8"):
+        row = report[name]
+        assert 0 < row["p50_ms"] <= row["p95_ms"]
+        assert row["images_per_s_batch8"] > 0
+    sizes = {name: report[name]["size_mb"] for name in ("pytorch_fp32", "onnx_fp32", "onnx_int8")}
+    assert sizes["onnx_int8"] == pytest.approx(
+        optimize_patchcore.int8_path("bottle").stat().st_size / 1e6
+    )
+    assert sizes["onnx_int8"] < sizes["onnx_fp32"]
