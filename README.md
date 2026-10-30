@@ -8,9 +8,13 @@
 not, and draws a heatmap showing where the defect is.** Built end to end on a CPU laptop, from raw
 images to a tested, versioned pipeline.
 
+**Live demo: [anomaly-inspector-5fe2.onrender.com](https://anomaly-inspector-5fe2.onrender.com)**.
+Upload a photo of a bottle and see the decision and the heatmap ([how it is deployed](#live-on-render)).
+It runs on a free plan, so the first visit can take about a minute to wake it up.
+
 > **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline, the
-> ONNX export, the API and its Docker image (public on GHCR) are done; the cloud deployment, CI/CD
-> gates and retraining come next. See the [roadmap](#roadmap).
+> ONNX export, the API, its Docker image (public on GHCR) and a live demo are done; CI/CD gates,
+> retraining and monitoring come next. See the [roadmap](#roadmap).
 
 ## The idea
 
@@ -302,6 +306,36 @@ docker push ghcr.io/you-ssef-dan/anomaly-inspector-api:$SHA
   an index that points to the linux/amd64 image and to a build attestation (how it was built).
   Deleting them breaks the image.
 
+### Live on Render
+
+The same image runs on [Render](https://render.com)'s free plan:
+**https://anomaly-inspector-5fe2.onrender.com** (the API docs are at `/docs`).
+
+![The live demo rejecting a broken bottle, with the heatmap over the broken area](reports/figures/demo_render.png)
+
+| Render setting | Value | Why |
+| --- | --- | --- |
+| Source | existing image `ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0` | the image tested above, pinned to a tag |
+| Instance | Free: 0.1 CPU, 512 MB of RAM, Frankfurt | no cost |
+| `PORT` | `8000` | where the app listens (Render expects 10000 by default) |
+| `API_THREADS` | `1` | a second ONNX thread does not help on 0.1 CPU |
+| Health check path | `/health/ready` | no traffic before the model is loaded |
+
+- **Slow, but enough for a demo.** A photo with its heatmap takes about 3.3 s end to end, 2.5 s of
+  it in the model, against 0.2 s on the laptop's 2 cores. The app uses 359 MB of the 512 MB. Both
+  were checked before deploying, by running the image locally with the same limits
+  (`docker run --cpus 0.1 --memory 512m -e API_THREADS=1 ...`).
+- **It sleeps.** After 15 minutes without visits Render stops it, and the next visit waits about a
+  minute while it starts again.
+- **Checked like the local container**, with the same smoke test:
+  `scripts/smoke_test.sh https://anomaly-inspector-5fe2.onrender.com`.
+- **Deploys are deliberate.** Render does not watch GHCR: a new version means changing the tag and
+  clicking *Manual Deploy*. In phase 8, CI will trigger Render's deploy hook with the new tag, once
+  the tests and the smoke test pass.
+- **Why Render:** its free plan runs an existing image at no cost. Google Cloud Run would be faster
+  (2 CPUs, about 0.2 s per photo, scales to zero) and is what a production deployment would use;
+  moving there is one `gcloud run deploy` with the same image.
+
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`.
@@ -394,7 +428,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 4 | Full DVC pipeline: train, evaluate, export per category | ✅ |
 | 5 | ONNX export, optimisation and quantisation | ✅ |
 | 6 | FastAPI inference service with pytest | ✅ |
-| 7 | Docker and a first deployment | 🚧 |
+| 7 | Docker and a first deployment | ✅ |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ⬜ |
 | 9 | Retraining and batch inspection with Airflow | ⬜ |
 | 10 | Monitoring and the feedback loop | ⬜ |
