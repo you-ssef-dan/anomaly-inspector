@@ -235,6 +235,7 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make test-slow` | Tests that need the optional `bench` extra, such as the comparison with anomalib |
 | `make bench` | Benchmark PatchCore against anomalib on all categories (needs the data and several GB of RAM) |
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
+| `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
 
 To train, evaluate and register the models (needs the data, Docker and about 4 GB of free RAM):
 

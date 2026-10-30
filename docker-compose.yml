@@ -24,6 +24,26 @@ services:
     volumes: [mlartifacts:/mlartifacts]
     depends_on:
       mlflow-db: {condition: service_healthy}
+    healthcheck:  # the image has no curl; Python is there
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 10s
+      start_period: 30s
+      retries: 5
+
+  # The inspection API: one category's ONNX model behind FastAPI (docker/api.Dockerfile).
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+      args: {MODEL_FILE: models/patchcore/bottle/model.onnx}  # which category this API serves
+    profiles: [api]
+    ports: ["127.0.0.1:8000:8000"]
+    # The size of a small cloud instance, so local latency and memory mean something. On this
+    # laptop, 2 CPUs' worth of time also lands on its slow efficiency cores: expect it slower here
+    # than on a server, whose cores are all alike.
+    deploy:
+      resources:
+        limits: {cpus: "2", memory: 1g}
 
 networks:
   default:
