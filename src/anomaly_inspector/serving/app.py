@@ -11,9 +11,11 @@ import io
 import time
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
+from importlib.resources import files
 from typing import Annotated, Protocol
 
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
 
 from anomaly_inspector.serving.heatmap import heatmap_png_base64
@@ -104,6 +106,14 @@ def create_app(
             )
             for file, image, prediction in zip(files, images, predictions, strict=True)
         ]
+
+    # The demo page: one static file shipped inside the package, so it works from the wheel too.
+    demo = files("anomaly_inspector.serving").joinpath("demo.html").read_text(encoding="utf-8")
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def demo_page() -> str:
+        """A page to try the model in a browser: pick a photo, see the decision and heatmap."""
+        return demo
 
     @app.get("/health/live")
     def live() -> dict[str, str]:

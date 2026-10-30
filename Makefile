@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down smoke
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -24,3 +24,11 @@ mlflow-up:
 	docker compose --profile mlflow up -d --build
 mlflow-down:
 	docker compose --profile mlflow down
+# The API in Docker, with 2 CPUs and 1 GB like a small cloud instance: http://localhost:8000/docs
+api-up:
+	docker compose --profile api up -d --build api
+api-down:
+	docker compose --profile api rm --stop --force api
+# Against the running API: ready, a good bottle passes, a broken one is rejected.
+smoke:
+	scripts/smoke_test.sh

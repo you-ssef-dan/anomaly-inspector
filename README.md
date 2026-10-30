@@ -173,6 +173,7 @@ loads it), and reads the threshold and image size from the model file.
 | GET | `/v1/model` | Category, threshold, image size, model version |
 | POST | `/v1/predict` | One photo: anomaly score, decision and, with `?heatmap=true`, the heatmap |
 | POST | `/v1/predict/batch` | Up to 8 photos in one model call |
+| GET | `/` | A demo page: pick a photo, see the decision, the score against the threshold and the heatmap |
 
 ```bash
 API_MODEL_PATH=models/patchcore/screw/model.onnx uv run uvicorn anomaly_inspector.serving.app:app
@@ -207,10 +208,38 @@ uv run locust -f tests/load/locustfile.py --host http://localhost:8000 \
 
 - **2 cores handle about 6 photos per second.** 10 cameras ask for about 10, so photos queue and
   the median wait doubles. With 5 cameras every photo is served, with a p95 under half a second.
-- **2 workers with 1 thread each** is slightly better than 1 worker with 2 threads, so it is the
-  setting kept. Workers × threads stays at the number of cores, so they never fight over them.
+- **2 workers with 1 thread each** is slightly faster here, but each worker holds its own copy of
+  the model: inside the 1 GB container it peaks at 1021 MB. The Docker image therefore runs
+  **1 worker with 2 threads**, as fast there (5.4 photos per second) with a 690 MB peak. Workers ×
+  threads stays at the number of cores, so they never fight over them.
 - A request includes the upload, decoding a 1024 px photo, preprocessing and the model. Intel Core
   Ultra 5 125H, on mains power. Full numbers: [`reports/load/`](reports/load).
+
+### In Docker
+
+The API image ([`docker/api.Dockerfile`](docker/api.Dockerfile)) is built in two stages: one
+installs the dependencies with uv, the other keeps only them and one category's ONNX model.
+
+| API image | |
+| --- | --- |
+| Size | **432 MB** on disk, about 200 MB to download (Python 133 MB, libraries 214 MB, model 109 MB) |
+| PyTorch | none: only ONNX Runtime, numpy and Pillow |
+| User | `app`, uid 10001, not root |
+| Health check | healthy once `/health/ready` answers, that is once the model is loaded |
+
+```bash
+make api-up        # builds it and starts it with 2 CPUs and 1 GB; demo page at http://localhost:8000
+make smoke         # ready? a good bottle passes? a broken one is rejected?
+
+# the proofs behind the table
+docker run --rm --entrypoint python anomaly-inspector-api -c \
+  "import sys, anomaly_inspector.serving.app; assert 'torch' not in sys.modules"
+docker run --rm --entrypoint id anomaly-inspector-api      # uid=10001(app)
+```
+
+`docker image ls` shows 660 MB: Docker's image store counts the unpacked layers and their
+compressed copies together. A separate training image ([`docker/train.Dockerfile`](docker/train.Dockerfile),
+about 3 GB with CPU PyTorch) holds no code: it runs the pipeline on the repository mounted into it.
 
 ## Quick start
 
@@ -233,6 +262,8 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make test-slow` | Tests that need the optional `bench` extra, such as the comparison with anomalib |
 | `make bench` | Benchmark PatchCore against anomalib on all categories (needs the data and several GB of RAM) |
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
+| `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
+| `make smoke` | Smoke test of the running API: ready, a good part passes, a defective one is rejected |
 
 To train, evaluate and register the models (needs the data, Docker and about 4 GB of free RAM):
 
@@ -264,7 +295,7 @@ src/anomaly_inspector/
   pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise
   serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
 scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery
-docker/              the MLflow server image (docker-compose.yml runs it with PostgreSQL)
+docker/              the API, training and MLflow images (docker-compose.yml runs MLflow and the API)
 tests/               unit and API tests on generated fake data, slow tests, a Locust load test
 notebooks/           exploratory data analysis (no outputs stored in git)
 docs/                data card, experiment findings

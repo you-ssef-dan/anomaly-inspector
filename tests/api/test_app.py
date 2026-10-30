@@ -222,3 +222,14 @@ def test_settings_come_from_api_environment_variables(monkeypatch: pytest.Monkey
     monkeypatch.setenv("API_THREADS", "4")
     settings = Settings()
     assert (str(settings.model_path), settings.threads) == ("models/patchcore/screw/model.onnx", 4)
+
+
+def test_the_demo_page_is_served_at_the_root(client: TestClient) -> None:
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    page = response.text
+    assert "v1/predict?heatmap=true" in page  # it calls the API with the heatmap
+    assert "v1/model" in page
+    assert '<input id="file" type="file"' in page
+    assert "/" not in client.get("/openapi.json").json()["paths"]  # not an API endpoint
