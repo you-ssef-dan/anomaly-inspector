@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anomaly Inspector</title>
+<style>
+  :root {
+    --surface: #fcfcfb; --card: #ffffff; --text: #0b0b0b; --text2: #52514e; --muted: #898781;
+    --line: #e1e0d9; --heat: #eb6834; --pass: #1a7f4b; --reject: #c4311f; --accent: #1f63b8;
+    --on-badge: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #1a1a19; --card: #232321; --text: #f0efec; --text2: #c3c2b7; --muted: #898781;
+      --line: #383835; --heat: #f07a4a; --pass: #3fb377; --reject: #ef6450; --accent: #6aa5ec;
+      --on-badge: #0b0b0b;
+    }
+  }
+  * { box-sizing: border-box; }
+  a { color: var(--accent); }
+  body {
+    margin: 0; background: var(--surface); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .lead { color: var(--text2); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  label.pick {
+    display: block; border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px;
+    text-align: center; cursor: pointer; color: var(--text2);
+  }
+  label.pick:hover, label.pick:focus-within { border-color: var(--accent); color: var(--text); }
+  input[type=file] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .model { color: var(--muted); font-size: 0.875rem; margin-top: 12px; }
+  #result { margin-top: 20px; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .row img { width: 256px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+  .facts { flex: 1; min-width: 220px; }
+  .badge {
+    display: inline-block; font-weight: 700; letter-spacing: 0.04em; padding: 6px 14px;
+    border-radius: 999px; color: var(--on-badge); margin-bottom: 12px;
+  }
+  .badge.pass { background: var(--pass); } .badge.reject { background: var(--reject); }
+  .bar { position: relative; height: 10px; background: var(--line); border-radius: 5px; margin: 8px 0 4px; }
+  .bar span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; }
+  .bar i { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+  .small { color: var(--text2); font-size: 0.875rem; }
+  .error { color: var(--reject); }
+  .legend::before {
+    content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+    background: var(--heat); margin-right: 6px; vertical-align: -1px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Anomaly Inspector</h1>
+  <p class="lead">Upload a photo of a part. The model, trained on good parts only, says whether it
+    is defective and shows where.</p>
+
+  <div class="card">
+    <label class="pick">
+      <input id="file" type="file" accept="image/png,image/jpeg">
+      <strong>Choose a photo</strong> (PNG or JPEG, up to 5 MB)
+    </label>
+    <p class="model" id="model">Loading the model…</p>
+    <div id="result" aria-live="polite"></div>
+  </div>
+
+  <p class="small">API: <a href="docs">/docs</a> · Model trained on
+    <a href="https://www.mvtec.com/research-teaching/datasets/mvtec-ad">MVTec AD</a>
+    (CC BY-NC-SA 4.0), for demonstration only.</p>
+</main>
+
+<script>
+  const result = document.getElementById("result");
+  const modelLine = document.getElementById("model");
+
+  // Relative URLs, so the page works wherever the API is mounted.
+  fetch("v1/model").then(r => r.json()).then(m => {
+    modelLine.textContent =
+      `Model: ${m.category} · threshold ${m.threshold.toFixed(2)} · version ${m.model_version.slice(0, 7)}`;
+  }).catch(() => { modelLine.textContent = "The model is not loaded yet."; });
+
+  document.getElementById("file").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    result.innerHTML = '<p class="small">Inspecting…</p>';
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const response = await fetch("v1/predict?heatmap=true", { method: "POST", body: form });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || `error ${response.status}`);
+      show(body);
+    } catch (error) {
+      result.innerHTML = "";
+      const p = document.createElement("p");
+      p.className = "error";
+      p.textContent = error.message;
+      result.appendChild(p);
+    }
+  });
+
+  function show(r) {
+    // The bar runs from 0 to 1.5 x the threshold; the black mark is the threshold.
+    const top = 1.5 * r.threshold;
+    const fill = Math.min(r.anomaly_score / top, 1) * 100;
+    const mark = (r.threshold / top) * 100;
+    const verdict = r.is_anomalous ? "reject" : "pass";
+    result.innerHTML = `
+      <div class="row">
+        <img alt="The photo with the model's anomaly map over it"
+             src="data:image/png;base64,${r.heatmap_png_base64}">
+        <div class="facts">
+          <span class="badge ${verdict}">${r.is_anomalous ? "DEFECTIVE: REJECT" : "GOOD: PASS"}</span>
+          <div>Anomaly score <strong>${r.anomaly_score.toFixed(2)}</strong>
+               (threshold ${r.threshold.toFixed(2)})</div>
+          <div class="bar" role="img"
+               aria-label="Score ${r.anomaly_score.toFixed(2)} against threshold ${r.threshold.toFixed(2)}">
+            <span style="width:${fill}%; background: var(--${r.is_anomalous ? "reject" : "pass"})"></span>
+            <i style="left:${mark}%"></i>
+          </div>
+          <p class="small legend">where the model sees an anomaly</p>
+          <p class="small">${Math.round(r.latency_ms)} ms in the model</p>
+        </div>
+      </div>`;
+  }
+</script>
+</body>
+</html>

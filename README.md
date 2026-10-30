@@ -173,6 +173,7 @@ loads it), and reads the threshold and image size from the model file.
 | GET | `/v1/model` | Category, threshold, image size, model version |
 | POST | `/v1/predict` | One photo: anomaly score, decision and, with `?heatmap=true`, the heatmap |
 | POST | `/v1/predict/batch` | Up to 8 photos in one model call |
+| GET | `/` | A demo page: pick a photo, see the decision, the score against the threshold and the heatmap |
 
 ```bash
 API_MODEL_PATH=models/patchcore/screw/model.onnx uv run uvicorn anomaly_inspector.serving.app:app
@@ -227,7 +228,7 @@ installs the dependencies with uv, the other keeps only them and one category's 
 | Health check | healthy once `/health/ready` answers, that is once the model is loaded |
 
 ```bash
-make api-up        # builds it and starts it with 2 CPUs and 1 GB, like a small cloud instance
+make api-up        # builds it and starts it with 2 CPUs and 1 GB; demo page at http://localhost:8000
 make smoke         # ready? a good bottle passes? a broken one is rejected?
 
 # the proofs behind the table
