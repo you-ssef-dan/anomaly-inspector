@@ -207,8 +207,10 @@ uv run locust -f tests/load/locustfile.py --host http://localhost:8000 \
 
 - **2 cores handle about 6 photos per second.** 10 cameras ask for about 10, so photos queue and
   the median wait doubles. With 5 cameras every photo is served, with a p95 under half a second.
-- **2 workers with 1 thread each** is slightly better than 1 worker with 2 threads, so it is the
-  setting kept. Workers × threads stays at the number of cores, so they never fight over them.
+- **2 workers with 1 thread each** is slightly faster here, but each worker holds its own copy of
+  the model: inside the 1 GB container it peaks at 1021 MB. The Docker image therefore runs
+  **1 worker with 2 threads**, as fast there (5.4 photos per second) with a 690 MB peak. Workers ×
+  threads stays at the number of cores, so they never fight over them.
 - A request includes the upload, decoding a 1024 px photo, preprocessing and the model. Intel Core
   Ultra 5 125H, on mains power. Full numbers: [`reports/load/`](reports/load).
 
