@@ -9,8 +9,8 @@ not, and draws a heatmap showing where the defect is.** Built end to end on a CP
 images to a tested, versioned pipeline.
 
 > **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline, the
-> ONNX export and the API are done; Docker, CI/CD gates and retraining come next. See the
-> [roadmap](#roadmap).
+> ONNX export, the API and its Docker image (public on GHCR) are done; the cloud deployment, CI/CD
+> gates and retraining come next. See the [roadmap](#roadmap).
 
 ## The idea
 
@@ -241,6 +241,67 @@ docker run --rm --entrypoint id anomaly-inspector-api      # uid=10001(app)
 compressed copies together. A separate training image ([`docker/train.Dockerfile`](docker/train.Dockerfile),
 about 3 GB with CPU PyTorch) holds no code: it runs the pipeline on the repository mounted into it.
 
+### Published on GitHub Container Registry
+
+The API image is public on
+[GHCR](https://github.com/users/you-ssef-dan/packages/container/package/anomaly-inspector-api),
+GitHub's registry for container images. It runs anywhere with Docker, without the repository or
+the data:
+
+```bash
+docker run --rm -p 8000:8000 ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0
+# then open http://localhost:8000 (demo page) or http://localhost:8000/docs
+```
+
+![The public anomaly-inspector-api package on GHCR, with its tags 0.1.0 and cc5987c](reports/figures/ghcr_package.png)
+
+| Tag | Means | Used for |
+| --- | --- | --- |
+| `0.1.0` | the first release (bottle model) | what people and deployments ask for |
+| `cc5987c` | the commit it was built from | knowing exactly which code and model are inside |
+
+Both tags name the same image (one digest). There is no `latest` tag: it moves with every build,
+so a deployment pinned to it would change without anyone deciding it.
+
+How it was published, once and by hand (CI takes this over in phase 8):
+
+```bash
+# 1. give the gh CLI token the right to push packages, and log Docker in to GHCR with it
+gh auth refresh -h github.com -s write:packages
+gh auth token | docker login ghcr.io -u you-ssef-dan --password-stdin
+
+# 2. build from a clean main and name the image: registry/owner/name:tag
+docker compose --profile api build api
+SHA=$(git rev-parse --short HEAD)
+docker tag anomaly-inspector-api ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0
+docker tag anomaly-inspector-api ghcr.io/you-ssef-dan/anomaly-inspector-api:$SHA
+
+# 3. push (about 200 MB); the second push only adds a tag, the layers are already there
+docker push ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0
+docker push ghcr.io/you-ssef-dan/anomaly-inspector-api:$SHA
+```
+
+4. **Make it public.** A new package starts private, and a private image cannot be pulled without
+   logging in. On the package page: *Package settings* → *Change package visibility* → *Public*.
+   *Connect repository* links it to this repository, so it shows on the repository page.
+5. **Check it as a stranger would**, logged out, with the smoke test (it needs the MVTec bottle
+   photos):
+
+   ```bash
+   docker logout ghcr.io
+   docker run -d --rm -p 8001:8000 --name ghcr-check ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0
+   scripts/smoke_test.sh http://localhost:8001   # ready, a good bottle passes, a broken one is rejected
+   docker stop ghcr-check
+   ```
+
+- **Why GHCR:** same GitHub account, the package sits next to the code, and GitHub Actions can push
+  to it with its built-in token. A company would more often use its cloud's private registry
+  (Artifact Registry, ECR) for access control, vulnerability scans and no pull limits; only the
+  host name and the login command change.
+- The package page also lists two **untagged** versions. They are part of the image: Docker pushes
+  an index that points to the linux/amd64 image and to a build attestation (how it was built).
+  Deleting them breaks the image.
+
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`.
@@ -333,7 +394,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 4 | Full DVC pipeline: train, evaluate, export per category | ✅ |
 | 5 | ONNX export, optimisation and quantisation | ✅ |
 | 6 | FastAPI inference service with pytest | ✅ |
-| 7 | Docker and a first deployment | ⬜ |
+| 7 | Docker and a first deployment | 🚧 |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ⬜ |
 | 9 | Retraining and batch inspection with Airflow | ⬜ |
 | 10 | Monitoring and the feedback loop | ⬜ |
