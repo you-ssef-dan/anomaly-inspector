@@ -36,6 +36,7 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
       args: {MODEL_FILE: models/patchcore/bottle/model.onnx}  # which category this API serves
+    image: anomaly-inspector-api
     profiles: [api]
     ports: ["127.0.0.1:8000:8000"]
     # The size of a small cloud instance, so local latency and memory mean something. On this
