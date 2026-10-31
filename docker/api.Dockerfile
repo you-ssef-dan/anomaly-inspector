@@ -4,9 +4,12 @@
 #       -t anomaly-inspector-api .
 #   docker run --rm -p 8000:8000 anomaly-inspector-api
 
+# uv as a stage of its own: Dependabot only updates images named on FROM lines.
+FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
+
 # Stage 1: build the virtual environment with uv. Nothing of this stage but .venv is kept.
 FROM python:3.12-slim-trixie AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 # Compile .pyc now (faster start), copy files instead of linking from the cache, and use the
 # image's Python rather than downloading one.
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never

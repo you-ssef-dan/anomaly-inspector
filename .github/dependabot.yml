@@ -1,0 +1,39 @@
+# Weekly pull requests that update the dependencies. Each one goes through the same required
+# checks as any change (ci, model-ci), and cd deploys it after approval once it is merged.
+# cooldown: a release is proposed only once it is 7 days old, so a hijacked release (like the
+# trivy-action tags in March 2026) has time to be caught before it reaches this repository.
+# docker-compose.yml is left out: a new major Postgres cannot read the MLflow data without a
+# migration, so that update stays a deliberate one.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]  # a major version gets a pull request of its own
+
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      # Python 3.12 is what uv.lock and the tests run on: a new Python is a deliberate change.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
