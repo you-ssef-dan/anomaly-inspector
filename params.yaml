@@ -6,7 +6,7 @@ data:
   seed: 42
 patchcore:
   backbone: wide_resnet50_2
-  coreset_ratio: 0.01
+  coreset_ratio: 0.0001
   seed: 42
 threshold:
   miss_cost: 10
