@@ -1,4 +1,7 @@
 [core]
-    remote = localstore
+    remote = dagshub
 ['remote "localstore"']
     url = /home/youssef/dvc-storage/industrial-anomaly-detection
+['remote "dagshub"']
+    url = s3://dvc
+    endpointurl = https://dagshub.com/you-ssef-dan/anomaly-inspector.s3
