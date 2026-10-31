@@ -336,6 +336,31 @@ The same image runs on [Render](https://render.com)'s free plan:
   (2 CPUs, about 0.2 s per photo, scales to zero) and is what a production deployment would use;
   moving there is one `gcloud run deploy` with the same image.
 
+<details>
+<summary><b>Deploy it on Render yourself, step by step</b></summary>
+
+You need a GitHub account. The free plan costs nothing, but Render may ask for a card to verify
+the account: it places a temporary $1 authorisation, not a charge.
+
+1. **Sign up** at [dashboard.render.com/register](https://dashboard.render.com/register) with GitHub.
+2. **Create the service:** *+ New* → *Web Service*, then under *Source Code* choose *Existing Image*.
+3. **Image URL:** `ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0`. The image is public, so leave
+   the credentials empty and click *Connect*.
+4. **Settings:**
+   - *Name*: it becomes `<name>.onrender.com`. Render adds a random suffix if another account
+     already uses that name, and the subdomain cannot be changed later.
+   - *Region*: the closest one (Frankfurt here). *Instance type*: *Free*.
+   - *Environment variables*: `PORT` = `8000` and `API_THREADS` = `1`.
+   - *Advanced* → *Health Check Path*: `/health/ready`. Leave *Docker Command* empty: the image
+     already starts uvicorn.
+5. **Click *Deploy web service*.** The *Logs* tab shows `Application startup complete.` and
+   `Uvicorn running on http://0.0.0.0:8000`, then *Your service is live*.
+6. **Check it:** `scripts/smoke_test.sh https://<name>.onrender.com`, then open the URL on a phone.
+7. **Deploy a new version:** *Settings* → *Image URL* → change the tag, then *Manual Deploy* →
+   *Deploy latest reference*.
+
+</details>
+
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`.
