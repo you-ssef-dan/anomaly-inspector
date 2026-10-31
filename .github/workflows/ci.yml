@@ -20,3 +20,32 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy src
       - run: uv run pytest -m "not slow and not integration"
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      # The real model lives in DVC, which CI cannot read yet. A tiny random one is enough to
+      # test the image: this job checks the packaging, not the model quality.
+      - run: uv sync --locked --extra train --extra serve
+      - run: uv run python scripts/make_tiny_model.py models/patchcore/bottle/model.onnx
+      - run: docker build -f docker/api.Dockerfile -t anomaly-inspector-api .
+      - run: docker run -d -p 8000:8000 --name api anomaly-inspector-api
+      - run: scripts/smoke_test.sh --basic
+      - name: The image has no PyTorch and does not run as root
+        run: |
+          docker exec api python -c "import sys, anomaly_inspector.serving.app; assert 'torch' not in sys.modules"
+          test "$(docker exec api id -u)" = 10001
+      - name: Container logs
+        if: failure()
+        run: docker logs api
+      # Pinned to the commit of v0.35.0: the tags of older versions were hijacked in March 2026.
+      # Fixable HIGH and CRITICAL findings fail the job; Debian lists many without a fix yet.
+      - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: anomaly-inspector-api
+          version: v0.69.3
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
