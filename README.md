@@ -172,7 +172,7 @@ loads it), and reads the threshold and image size from the model file.
 
 | Method | Path | Answer |
 | --- | --- | --- |
-| GET | `/health/live` | The process is up |
+| GET | `/health/live` | The process is up, and the build (commit) of the image it runs |
 | GET | `/health/ready` | The model is loaded (503 until then) |
 | GET | `/v1/model` | Category, threshold, image size, model version |
 | POST | `/v1/predict` | One photo: anomaly score, decision and, with `?heatmap=true`, the heatmap |
@@ -329,9 +329,11 @@ The same image runs on [Render](https://render.com)'s free plan:
   minute while it starts again.
 - **Checked like the local container**, with the same smoke test:
   `scripts/smoke_test.sh https://anomaly-inspector-5fe2.onrender.com`.
-- **Deploys are deliberate.** Render does not watch GHCR: a new version means changing the tag and
-  clicking *Manual Deploy*. In phase 8, CI will trigger Render's deploy hook with the new tag, once
-  the tests and the smoke test pass.
+- **Deploys go through CD** ([`cd.yml`](.github/workflows/cd.yml)). After a change to `main`, it
+  builds the image with the real model, smoke-tests it and pushes it to GHCR under its commit;
+  once approved, it triggers Render's deploy hook with that tag, waits until `/health/live` reports
+  the new build, and smoke-tests the live URL. Render's own *Manual Deploy* button would deploy the
+  tag in Render's settings (`0.1.0`), so a redeploy goes through *Actions* → *cd* → *Run workflow*.
 - **Why Render:** its free plan runs an existing image at no cost. Google Cloud Run would be faster
   (2 CPUs, about 0.2 s per photo, scales to zero) and is what a production deployment would use;
   moving there is one `gcloud run deploy` with the same image.

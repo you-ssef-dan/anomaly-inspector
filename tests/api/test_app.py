@@ -174,7 +174,7 @@ def test_one_bad_file_fails_the_whole_batch_and_names_it(
 
 
 def test_health_and_model_info(client: TestClient) -> None:
-    assert client.get("/health/live").json() == {"status": "live"}
+    assert client.get("/health/live").json() == {"status": "live", "build": "dev"}
     assert client.get("/health/ready").json() == {"status": "ready", "model_version": "test-sha"}
     assert client.get("/v1/model").json() == {
         "category": "bottle",
@@ -186,8 +186,8 @@ def test_health_and_model_info(client: TestClient) -> None:
 
 def test_before_the_model_is_loaded_the_api_is_live_but_not_ready() -> None:
     # Without `with`, TestClient does not run startup, so no model is loaded.
-    client = TestClient(create_app(Settings(), load=lambda _: FakeModel()))
-    assert client.get("/health/live").status_code == 200
+    client = TestClient(create_app(Settings(build="a1b2c3d"), load=lambda _: FakeModel()))
+    assert client.get("/health/live").json() == {"status": "live", "build": "a1b2c3d"}
     assert client.get("/health/ready").status_code == 503
     assert (
         client.post("/v1/predict", files={"file": upload("p.png", image_bytes(1))}).status_code

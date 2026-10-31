@@ -1,0 +1,94 @@
+name: cd
+# After a change to main that can change the API image: build the image with the real model
+# (from DagsHub), smoke-test it, push it to GHCR. Then, once you approve the `production`
+# deployment, deploy it on Render and smoke-test the live URL.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/anomaly_inspector/**"
+      - "docker/api.Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "dvc.lock"  # a new model
+      - "scripts/smoke_test.sh"
+      - ".github/workflows/cd.yml"
+  workflow_dispatch:  # deploy main again by hand: Actions tab, "Run workflow"
+permissions:
+  contents: read
+concurrency:
+  group: cd
+  cancel-in-progress: false  # never stop a deploy halfway
+env:
+  IMAGE: ghcr.io/you-ssef-dan/anomaly-inspector-api
+  LIVE_URL: https://anomaly-inspector-5fe2.onrender.com
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write  # push to GHCR
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      # The real model and the smoke test's two photos, without installing PyTorch.
+      - run: >-
+          uvx --from "dvc[s3]==3.67.1" dvc pull models/patchcore/bottle/model.onnx
+          data/raw/mvtec_ad/bottle/test/good/001.png
+          data/raw/mvtec_ad/bottle/test/broken_large/002.png
+      - run: >-
+          docker build -f docker/api.Dockerfile -t "$IMAGE:${{ steps.tag.outputs.tag }}"
+          --build-arg BUILD=${{ steps.tag.outputs.tag }}
+          --label org.opencontainers.image.revision=${{ github.sha }} .
+      - run: docker run -d -p 8000:8000 --name api "$IMAGE:${{ steps.tag.outputs.tag }}"
+      - run: scripts/smoke_test.sh  # the real model: a good bottle passes, a broken one is rejected
+      - name: Container logs
+        if: failure()
+        run: docker logs api
+      - name: Push to GHCR
+        env:
+          TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG"
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production  # waits for your approval; RENDER_DEPLOY_HOOK lives here
+      url: https://anomaly-inspector-5fe2.onrender.com
+    env:
+      TAG: ${{ needs.image.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Deploy the image on Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: >-
+          curl -fsS -o /dev/null -w "Render answered HTTP %{http_code}\n"
+          -G "$HOOK" --data-urlencode "imgURL=$IMAGE:$TAG"
+      # Render keeps the old version answering until the new one is ready: wait for this build.
+      - name: Wait until Render serves this build
+        run: |
+          for _ in $(seq 1 40); do
+            build=$(curl -fsS -m 90 "$LIVE_URL/health/live" \
+              | python3 -c "import json, sys; print(json.load(sys.stdin).get('build'))" || true)
+            if [ "$build" = "$TAG" ]; then echo "build $TAG is live"; exit 0; fi
+            echo "live build: ${build:-no answer}, waiting for $TAG"
+            sleep 20
+          done
+          echo "build $TAG is not live after about 15 minutes"
+          exit 1
+      - run: scripts/smoke_test.sh --basic "$LIVE_URL"
