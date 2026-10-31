@@ -1,0 +1,17 @@
+# Quality gates: the models must reach these holdout scores, or the gate fails
+# (python -m anomaly_inspector.pipelines.gate; model-ci runs it on pull requests).
+# Each floor is the current result minus about one point, rounded down to two decimals. Raise
+# them when a better model is merged. The speed limit is promotion.latency_budget_ms in
+# params.yaml, the one the registry already uses.
+# Not in params.yaml: every DVC stage reads that file through config.py, which forbids unknown
+# keys, and a change to config.py makes the whole pipeline run again for nothing.
+floors:
+  bottle:
+    holdout_image_auroc: 0.99  # now 1.0000
+    holdout_aupro: 0.93  # now 0.9410
+  carpet:
+    holdout_image_auroc: 0.97  # now 0.9873
+    holdout_aupro: 0.93  # now 0.9420
+  screw:
+    holdout_image_auroc: 0.88  # now 0.8918
+    holdout_aupro: 0.87  # now 0.8852
