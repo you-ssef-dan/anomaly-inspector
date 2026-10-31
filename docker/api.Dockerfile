@@ -27,6 +27,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Stage 2: the image that runs. Same base, so the virtual environment's Python links still work.
 FROM python:3.12-slim-trixie
 ARG MODEL_FILE=models/patchcore/bottle/model.onnx
+# The commit the image is built from: /health/live returns it (CD passes it, `dev` otherwise).
+ARG BUILD=dev
 # A fixed, unprivileged user: a bug in the app cannot touch the rest of the container as root.
 RUN useradd --create-home --uid 10001 app
 WORKDIR /app
@@ -36,7 +38,7 @@ COPY --chown=app:app ${MODEL_FILE} /app/model/model.onnx
 # as fast as 2 workers x 1 thread (5.4 photos/s), but a peak of 690 MB instead of 1021 MB, since
 # each worker holds its own copy of the model. Both can be changed at `docker run -e`.
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 \
-    API_MODEL_PATH=/app/model/model.onnx API_THREADS=2 UVICORN_WORKERS=1
+    API_MODEL_PATH=/app/model/model.onnx API_THREADS=2 UVICORN_WORKERS=1 API_BUILD=${BUILD}
 USER app
 EXPOSE 8000
 # Docker marks the container healthy only once the model is loaded (/health/ready answers 200).

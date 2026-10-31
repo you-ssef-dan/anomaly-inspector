@@ -117,8 +117,8 @@ def create_app(
 
     @app.get("/health/live")
     def live() -> dict[str, str]:
-        """The process is up."""
-        return {"status": "live"}
+        """The process is up, and which build of the image it runs."""
+        return {"status": "live", "build": config.build}
 
     @app.get("/health/ready")
     def ready(model: ModelDep) -> dict[str, str]:
