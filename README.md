@@ -334,6 +334,11 @@ The same image runs on [Render](https://render.com)'s free plan:
   once approved, it triggers Render's deploy hook with that tag, waits until `/health/live` reports
   the new build, and smoke-tests the live URL. Render's own *Manual Deploy* button would deploy the
   tag in Render's settings (`0.1.0`), so a redeploy goes through *Actions* → *cd* → *Run workflow*.
+- **Rollback.** Fast: on Render, *Deploys* → the last good deploy → *Rollback*. The image tags are
+  commits and are never overwritten, so the same image comes back; check it with
+  `curl …/health/live`, which shows the build. Through CI: *Actions* → *cd* → the run of the last
+  good commit → *Re-run all jobs*, which rebuilds, smoke-tests and redeploys it after approval.
+  Either way, the fix then goes to `main` in a pull request, and the next deploy ships it.
 - **Why Render:** its free plan runs an existing image at no cost. Google Cloud Run would be faster
   (2 CPUs, about 0.2 s per photo, scales to zero) and is what a production deployment would use;
   moving there is one `gcloud run deploy` with the same image.
@@ -439,8 +444,10 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
   cannot drift apart.
 - **Reproducible.** Fixed seeds, a locked environment (`uv.lock`) and validated configuration.
 - **Checked on every change.** Strict typing, lint, hooks that block large files, notebook outputs
-  and secrets, and CI on every pull request. `main` is protected: changes arrive through pull
-  requests whose CI must pass.
+  and secrets, and CI on every pull request. `main` is protected: changes arrive through up-to-date
+  pull requests that pass `checks` (lint, types, tests), `docker` (the image builds, answers its
+  smoke test and has no fixable high or critical vulnerability) and `pipeline` (the models still
+  pass the quality gate).
 
 ## Roadmap
 
