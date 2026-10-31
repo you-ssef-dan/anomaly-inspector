@@ -13,6 +13,8 @@ mlflow.db
 mlruns/
 
 
+.vscode/
+
 # Distribution / packaging
 .Python
 build/
