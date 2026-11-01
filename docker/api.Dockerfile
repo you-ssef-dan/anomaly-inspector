@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Stage 2: the image that runs. Same base, so the virtual environment's Python links still work.
 FROM python:3.12-slim-trixie
 ARG MODEL_FILE=models/patchcore/bottle/model.onnx
-# The commit the image is built from: /health/live returns it (CD passes it, `dev` otherwise).
+# The release the image is built from: /health/live returns it (CD passes it, `dev` otherwise).
 ARG BUILD=dev
 # A fixed, unprivileged user: a bug in the app cannot touch the rest of the container as root.
 RUN useradd --create-home --uid 10001 app

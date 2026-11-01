@@ -1,5 +1,5 @@
 # Weekly pull requests that update the dependencies. Each one goes through the same required
-# checks as any change (ci, model-ci), and cd deploys it after approval once it is merged.
+# checks as any change (ci, model-ci); once merged, it goes live with the next release (cd).
 # cooldown: a release is proposed only once it is 7 days old, so a hijacked release (like the
 # trivy-action tags in March 2026) has time to be caught before it reaches this repository.
 # docker-compose.yml is left out: a new major Postgres cannot read the MLflow data without a

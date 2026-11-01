@@ -14,5 +14,6 @@ class Settings(BaseSettings):
     threads: int = Field(2, ge=1)  # ONNX Runtime threads; the container gets 2 CPUs (Phase 7)
     max_upload_mb: float = Field(5, gt=0)  # the largest MVTec image is 2 MB
     max_batch: int = Field(8, ge=1)  # images per /v1/predict/batch request
-    # The commit the image was built from (CD sets it), so a deploy can check what is live.
+    # The release the image was built from (CD sets it, like 0.2.0), so a deploy can check what is
+    # live.
     build: str = "dev"
