@@ -16,8 +16,9 @@ Upload a photo of a bottle and see the decision and the heatmap ([how it is depl
 It runs on a free plan, so the first visit can take about a minute to wake it up.
 
 > **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline, the
-> ONNX export, the API, its Docker image (public on GHCR), a live demo and [CI/CD](#cicd) with
-> model quality gates are done; retraining and monitoring come next. See the [roadmap](#roadmap).
+> ONNX export, the API, its Docker image (public on GHCR), a live demo, [CI/CD](#cicd) with
+> model quality gates, and [retraining and batch inspection with Airflow](#retraining-and-batch-inspection-with-airflow)
+> are done; tests for the DAGs in CI and monitoring come next. See the [roadmap](#roadmap).
 
 ## The idea
 
@@ -117,7 +118,7 @@ traced back to what produced it:
 | Params | every value of `params.yaml` |
 | Metrics | holdout image AUROC, pixel AUROC, AUPRO, ms per image; CPU and RAM over time |
 | Artifacts | `threshold.json`, ROC and PRO curves, the holdout failure gallery |
-| Model | the ONNX file that serves, registered as a new version of `patchcore-<category>` by `scripts/register_model.py`, outside the pipeline, so re-running a stage never adds a version |
+| Model | the ONNX file that serves, registered as a new version of `patchcore-<category>` by [`pipelines/register.py`](src/anomaly_inspector/pipelines/register.py), outside the pipeline, so re-running a stage never adds a version |
 
 **Promotion is code, not a click.** Each new version becomes the `challenger`.
 [`should_promote`](src/anomaly_inspector/registry.py) makes it the `champion` only if it was trained
@@ -661,6 +662,246 @@ uvx --from actionlint-py actionlint
   identical apps. A `develop` branch would have solved it with two pull requests per change; a
   release keeps a single `main` and makes shipping a deliberate step.
 
+## Retraining and batch inspection with Airflow
+
+Two [Airflow 3](https://airflow.apache.org) DAGs run on the laptop without me.
+`retrain_patchcore` turns photos that people confirmed good into a new model and proposes it in a
+pull request. `batch_inspection` scores the factory line every 10 minutes. Airflow only
+orchestrates: every ML step runs in the training image, and scoring is the API's job. And it never
+deploys: a new champion becomes a pull request, CI checks it, I merge it, and a release ships it.
+
+```mermaid
+flowchart LR
+  line([factory line]) -->|photos| li["line/incoming/"]
+  li --> bi["batch_inspection<br/>every 10 min"]
+  bi <-->|HTTP| api["inspection API"]
+  bi -->|flagged| review["review/<br/>for a person"]
+  bi -->|passed| arch["archive/line/"]
+  bi --> log[("inspection log<br/>Parquet")]
+  people([people]) -->|confirm good parts| inc["incoming/category/good/"]
+  inc --> rt["retrain_patchcore<br/>weekly"]
+  rt -->|new champion| pr(["pull request"])
+  rt -->|no better| none(["no_change"])
+  pr --> ci["CI + quality gate"] --> merge{"merge"} -.->|when I choose| release(["release, then live"])
+```
+
+### Retraining: `retrain_patchcore`
+
+Weekly (Sunday, 00:00 UTC), one run at a time, on Airflow's own clone of this repository, so its
+git commands never touch the copy I work in. Steps marked *training image* run in
+`anomaly-inspector-train` through `DockerOperator`, so the Airflow image needs no PyTorch.
+
+| Task | Runs in | What it does |
+| --- | --- | --- |
+| `new_data_ready` | Airflow | Are there at least 20 confirmed photos for a category? If none has, the run stops here. |
+| `start_branch` | training image | A `retrain/<time>` branch from `origin/main`, then `dvc pull`. Refuses to run if the image was built from another `uv.lock` than main's. |
+| `ingest` | training image | Copies the new photos into the training data, skipping any image the category already has (by SHA-1), then `dvc add` and a **commit**. Nothing new: the rest of the run is skipped. |
+| `retrain` | training image | `dvc repro`: train, evaluate (an MLflow run), export to ONNX, optimise. |
+| `register` | training image | Each retrained category becomes the MLflow challenger, and the promotion rules decide if it is the new champion. Its last line, like `{"bottle": true}`, goes to `decide`. |
+| `decide` | Airflow | A new champion: `open_pull_request`. None: `no_change`. |
+| `open_pull_request` | training image | Commits `dvc.lock` and the reports, `dvc push`, pushes the branch and opens the pull request through the GitHub API. Safe to retry. |
+| `archive_incoming` | Airflow | Moves the photos the pull request carries to `archive/confirmed/<run>/`, so they never count twice. |
+| `no_change` | Airflow | Nothing proposed, nothing deployed. The photos stay in `incoming/` for the next run. |
+
+Two rules shape it:
+
+- **Only photos a person confirmed.** Training on the model's own decisions would teach it its
+  own mistakes.
+- **The data is committed before training.** A run from uncommitted code or data can never become
+  champion ([the promotion rules](#tracking-and-model-registry)): image AUROC not lower, AUPRO at
+  most 0.005 lower, at most 200 ms per image, clean git. Committing first makes the run promotable.
+
+#### Tested both ways
+
+![retrain_patchcore in the Airflow UI: the first run (left column) opened a pull request and archived the photos; the second (right) ended in no_change](reports/figures/airflow_retrain_runs.png)
+
+| Run | Input | Result |
+| --- | --- | --- |
+| 1, scheduled | 20 confirmed good bottle photos from the simulator | New champion (v4). The DAG opened [PR #49](https://github.com/you-ssef-dan/anomaly-inspector/pull/49); `model-ci` passed in 53 s without retraining (the models were already in DVC); merged |
+| 2, by hand | 20 **mislabeled** photos: defective bottles from the holdout set (broken, contaminated), saved again under new names (same pixels, new SHA-1), as if a person had confirmed them good | Challenger v5 only: image AUROC **0.706** (champion 1.0), AUPRO **0.434** (0.936). `no_change`: no branch pushed, no pull request, nothing deployed |
+
+The second run is the one that matters: bad labels made a worse model, and the rules kept it away
+from production. A run takes 15 to 25 minutes, most of it in `dvc repro`, which re-runs all three
+categories because they share one manifest. The training container peaked at 3.3 GB.
+
+![Pull request #49, opened by the DAG, and model-ci's metrics comment](reports/figures/airflow_retrain_pr.png)
+
+What PR #49 shows:
+
+- **"A better model" means "not worse, by the rules".** Image AUROC stayed at 1.0, and AUPRO went
+  from 0.941 to 0.9364: 0.0046 lower, inside the 0.005 tolerance by a hair. Twenty more good
+  photos cannot improve much on a category that is already perfect at flagging.
+- **Latency went from 99 to 187 ms per image**, because it was measured inside the Airflow run,
+  next to the rest of the stack. That is close to the 200 ms budget: on a busy laptop, a good model
+  could be rejected for speed alone.
+- **Its first try failed after pushing the branch.** The GitHub token had no *Pull requests*
+  permission (403). The retry then stopped at `git commit`, because the commit was already there.
+  The script now skips a commit that exists
+  ([#48](https://github.com/you-ssef-dan/anomaly-inspector/pull/48)), and the retry opened the
+  pull request.
+
+### Batch inspection: `batch_inspection`
+
+Every 10 minutes, one run at a time.
+
+| Task | What it does |
+| --- | --- |
+| `list_new_images` | The photos in `line/incoming/`, in chunks of 10. A photo still being copied ends in `.part`, so it waits for the next run. No photos: the rest is skipped. |
+| `score_chunk[i]` | One task per chunk, created at run time (dynamic task mapping) and run in parallel. `POST /v1/predict` for each photo, as the line's PC would. 3 retries with backoff if the API is down. Only names and scores go through XCom, never pixels. |
+| `store_and_route` | Writes every result to the inspection log **first**, then moves each photo: flagged to `review/`, passed to `archive/line/<day>/`. |
+
+The log is one Parquet file per run in `inspection_log/date=<day>/`. A retry rewrites the same file
+and skips the photos already moved, so no result is lost or counted twice. Phase 10's drift report
+will read it.
+
+![A batch_inspection run: 25 photos became three score_chunk tasks](reports/figures/airflow_batch_run.png)
+
+The test: the simulator put 25 photos on the line, 10 of them defective. The decisions, against the
+truth it wrote in `line/labels.csv`:
+
+| Truth | Sent to `review/` | Sent to `archive/` |
+| --- | --- | --- |
+| broken_large (4) | 4 | 0 |
+| broken_small (5) | 5 | 0 |
+| contamination (1) | 0 | **1** |
+| good (15) | 0 | 15 |
+
+- The run took 3 seconds. The missed contamination scored under the threshold, so it was archived
+  and no one will look at it. Phase 10 measures these misses against the truth.
+- The median was 730 ms per photo, because three chunks hit the API's 2 CPUs at once. Fine at this
+  volume.
+- Running `store_and_route` a second time by hand left the log at one file of 25 rows. A run with
+  an empty line succeeds and skips the scoring.
+
+Two rows of the log (it also has `category`, `scored_at`, `run_id`, and `date` from the folder):
+
+| filename | anomaly_score | threshold | is_anomalous | model_version | latency_ms |
+| --- | --- | --- | --- | --- | --- |
+| `20261101T213446Z-2f5b658e.png` | 1.489 | 2.242 | false | `4b5af98…` | 805 |
+| `20261101T213446Z-acc678e6.png` | 2.991 | 2.242 | true | `4b5af98…` | 456 |
+
+### The factory, simulated
+
+[`scripts/simulate_line.py`](scripts/simulate_line.py) stands in for the camera and for the people
+(standard library only):
+
+- **The line.** Every tick (5 minutes by default) it puts a batch of photos in `line/incoming/`:
+  good parts from the simulation pool, the 20% of each category's good training photos held back
+  since Phase 1 so training never saw them, mixed with real defects from the test set (10% by
+  default). File names give nothing away; the truth goes to `line/labels.csv`.
+- **The people.** It confirms a few pool photos good (2 per tick by default) into
+  `incoming/<category>/good/`, each one once at most.
+
+Copies are atomic (a `.part` name, then a rename), so a DAG never reads half a photo.
+
+### How it runs on a laptop
+
+```
+~/airflow-workspace/
+  industrial-anomaly-detection/   Airflow's own clone of this repository
+  incoming/<category>/good/       confirmed good photos, waiting for a retrain
+  line/incoming/                  photos from the line, waiting for inspection
+  line/labels.csv                 the truth about each of them, from the simulator
+  review/                         flagged photos, for a person
+  archive/confirmed/<run>/        photos a retraining pull request carries
+  archive/line/<day>/             photos that passed
+  inspection_log/date=<day>/      one Parquet file per batch_inspection run
+```
+
+[`airflow/docker-compose.yaml`](airflow/docker-compose.yaml) is the official Airflow 3.3.2 file,
+changed for the laptop:
+
+- **LocalExecutor:** tasks run in the scheduler, so no Redis, Celery worker or Flower (about 640 MB
+  saved). At most 4 tasks at once.
+- **The scheduler gets the Docker socket**, to start the training image, and the workspace at the
+  same absolute path as on the host, because `DockerOperator` mounts host paths.
+- **One shared network, `inspection`**, created by the main `docker-compose.yml`: Airflow reaches
+  `mlflow:5000` and `api:8000` by name.
+- **The UI listens on 127.0.0.1 only.** No example DAGs.
+
+At rest, Airflow's five containers use about 0.9 GB, and 1.5 GB with MLflow and the API. MLflow's
+background job workers are off (`MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false`): this project does not
+use them, and they took about 1.5 GB.
+
+**Secrets.** Two tokens, and only the scheduler gets them:
+
+- **GitHub:** a fine-grained token for this repository only, with *Contents* and *Pull requests*
+  read and write, in `airflow/.env` (ignored by git). Only `open_pull_request` receives it, and git
+  gets it through a credential helper, never in a URL.
+- **DagsHub:** not in Airflow's `.env`. `make airflow-up` reads it from `.dvc/config.local`, so it
+  has one copy on disk, and [`scripts/rotate_dagshub_token.sh`](scripts/rotate_dagshub_token.sh)
+  replaces it everywhere (DVC, the two GitHub secrets, Airflow) from one hidden prompt.
+
+The training containers get both as `private_environment`, which Airflow hides in the UI and logs.
+
+### Using it day to day
+
+```bash
+make train-image   # once, and after each uv.lock change: start_branch refuses an older image
+make airflow-up    # MLflow, the API, then Airflow: http://localhost:8080 (airflow / airflow)
+
+# The line: 10 photos every 5 minutes (--confirm 0: no confirmed photos, so no retraining)
+python3 scripts/simulate_line.py --confirm 0
+# 20 confirmed good photos at once: enough for a retrain
+python3 scripts/simulate_line.py --ticks 1 --batch 0 --confirm 20
+
+cd airflow
+# Retrain now rather than on Sunday (the logical date names the branch)
+docker compose exec airflow-scheduler airflow dags trigger retrain_patchcore \
+  -l "$(date -u +%Y-%m-%dT%H:%M:00+00:00)"
+# Re-run a failed task and what follows it, in the runs of that day
+docker compose exec airflow-scheduler airflow tasks clear retrain_patchcore \
+  -t open_pull_request -d -s 2026-11-01 -e 2026-11-02 --yes
+# Stop the 10-minute inspection, or start it again
+docker compose exec airflow-scheduler airflow dags pause batch_inspection
+docker compose exec airflow-scheduler airflow dags unpause batch_inspection
+cd ..
+
+# Read the inspection log
+uv run python -c "import os, pandas as pd; print(pd.read_parquet(os.path.expanduser('~/airflow-workspace/inspection_log')))"
+
+make airflow-down
+```
+
+<details>
+<summary><b>Setting it up the first time</b></summary>
+
+1. **The workspace and Airflow's clone.** The DagsHub token comes from the environment, so the
+   clone gets no copy of it, and `uvx` runs DVC alone, so the clone needs no environment of its
+   own (the DAG's steps use the training image's):
+
+   ```bash
+   mkdir -p ~/airflow-workspace/{incoming,line/incoming,review,archive}
+   git clone https://github.com/you-ssef-dan/anomaly-inspector.git \
+     ~/airflow-workspace/industrial-anomaly-detection
+   token="$(uv run dvc config --local remote.dagshub.secret_access_key)"   # in this repository
+   cd ~/airflow-workspace/industrial-anomaly-detection
+   AWS_ACCESS_KEY_ID="$token" AWS_SECRET_ACCESS_KEY="$token" uvx --from "dvc[s3]==3.67.1" dvc pull
+   unset token
+   ```
+
+2. **The GitHub token:** *Settings* → *Developer settings* → *Fine-grained tokens* → *Generate new
+   token*. *Only select repositories*: this one. *Repository permissions*: *Contents* and *Pull
+   requests*, read and write (*Metadata* read-only is added for you).
+3. **Airflow's settings:** `cp airflow/.env.example airflow/.env`, `chmod 600 airflow/.env`, then
+   fill it in. Each line says where its value comes from.
+4. **Start:** `make train-image`, `make mlflow-up api-up` (it creates the `inspection` network),
+   then `cd airflow && docker compose up airflow-init`, then `make airflow-up`. Both DAGs start
+   paused: unpause them in the UI.
+
+</details>
+
+**Where this differs from the [Phase 9 plan](guides/phases/09-airflow-orchestration.md):**
+
+- **The data is committed by `ingest`, before `dvc repro`**, not with the results at the end:
+  otherwise the training run comes from a dirty tree, and the promotion rules refuse it.
+- **`register --category`** for the categories that had new photos, not `--all`; `--all` still
+  exists.
+- **The DagsHub token instead of R2 keys**, as in Phase 8, with one copy on disk.
+- **Chunks of 10 photos, not 25**, so the usual 10-minute batch (about 20 photos) still splits.
+- **One Parquet file per run** in dated folders, rather than appending to one file: Parquet files
+  cannot be appended to, and a retry overwrites its own file.
+
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you) and `make`.
@@ -684,6 +925,8 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
 | `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
 | `make smoke` | Smoke test of the running API: ready, a good part passes, a defective one is rejected |
+| `make train-image` | Build the training image that the retraining DAG runs its steps in |
+| `make airflow-up` / `make airflow-down` | Start MLflow, the API and Airflow (http://localhost:8080), or stop Airflow ([setup](#retraining-and-batch-inspection-with-airflow)) |
 
 To train, evaluate and register the models (needs the data, Docker and about 4 GB of free RAM):
 
@@ -691,7 +934,7 @@ To train, evaluate and register the models (needs the data, Docker and about 4 G
 cp .env.example .env    # then put a real password in it
 make mlflow-up          # the UI is at http://localhost:5000
 uv run --env-file .env dvc repro                                   # every category; re-runs only what changed
-uv run --env-file .env python scripts/register_model.py --category screw
+uv run --env-file .env python -m anomaly_inspector.pipelines.register --category screw   # or --all
 ```
 
 Without `--env-file`, `dvc repro` writes exactly the same files, just without MLflow runs.
@@ -712,11 +955,14 @@ src/anomaly_inspector/
   training/          STFPM training loop (seeded, early stopping, best checkpoint)
   evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
   export/            ONNX export with metadata, INT8 quantisation, latency benchmark
-  pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise
+  pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise;
+                     and the retraining DAG's steps: ingest new photos, register in MLflow
   serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
 scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery,
-                     the smoke test and the tiny model CI builds the image with
+                     the smoke test and the tiny model CI builds the image with, the factory
+                     simulator, the retraining pull request, the DagsHub token rotation
 docker/              the API, training and MLflow images (docker-compose.yml runs MLflow and the API)
+airflow/             Airflow 3 in Docker Compose, and the retrain_patchcore and batch_inspection DAGs
 .github/             the ci, model-ci and cd workflows, and the Dependabot settings
 tests/               unit and API tests on generated fake data, slow tests, a Locust load test
 notebooks/           exploratory data analysis (no outputs stored in git)
@@ -746,6 +992,9 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
   pass the quality gate). A deploy is a release, and needs a human approval. See [CI/CD](#cicd).
 - **Careful with the supply chain.** Actions pinned to commit SHAs, least-privilege tokens,
   Dependabot with a 7-day cooldown, and an image scan on every pull request.
+- **Automation proposes, people decide.** Airflow retrains only on photos people confirmed, never
+  on its own decisions, and a new champion becomes a pull request that CI checks. Nothing it does
+  reaches production without a merge and a release. See [Airflow](#retraining-and-batch-inspection-with-airflow).
 
 ## Roadmap
 
@@ -762,7 +1011,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 6 | FastAPI inference service with pytest | ✅ |
 | 7 | Docker and a first deployment | ✅ |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ✅ |
-| 9 | Retraining and batch inspection with Airflow | ⬜ |
+| 9 | Retraining and batch inspection with Airflow (next: the DAG tests in CI) | 🚧 |
 | 10 | Monitoring and the feedback loop | ⬜ |
 
 ## Data and license
