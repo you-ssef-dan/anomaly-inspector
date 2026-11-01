@@ -1,20 +1,12 @@
 name: cd
-# After a change to main that can change the API image: build the image with the real model
-# (from DagsHub), smoke-test it, push it to GHCR. Then, once you approve the `production`
-# deployment, deploy it on Render and smoke-test the live URL.
+# Deploys a release. Publishing one (gh release create v0.2.0 --generate-notes) builds the API
+# image with the real model (from DagsHub), smoke-tests it and pushes it to GHCR as 0.2.0. Then,
+# once you approve the `production` deployment, it deploys it on Render and smoke-tests the live
+# URL. A merge to main deploys nothing: ci and model-ci test it, and you choose when it goes live.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/anomaly_inspector/**"
-      - "docker/api.Dockerfile"
-      - ".dockerignore"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "dvc.lock"  # a new model
-      - "scripts/smoke_test.sh"
-      - ".github/workflows/cd.yml"
-  workflow_dispatch:  # deploy main again by hand: Actions tab, "Run workflow"
+  release:
+    types: [published]
+  workflow_dispatch:  # deploy a release again: gh workflow run cd.yml --ref v0.2.0
 permissions:
   contents: read
 concurrency:
@@ -31,41 +23,75 @@ jobs:
       contents: read
       packages: write  # push to GHCR
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      tag: ${{ steps.release.outputs.tag }}
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0  # all of main, to check that the release is on it
           persist-credentials: false  # no git push here: do not leave the token in .git
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-      - id: tag
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      # Only a v* tag on a commit of main deploys. The image is named after the version:
+      # release v0.2.0 -> ghcr.io/...:0.2.0, which /health/live then reports as its build.
+      - name: Is this a release of main?
+        id: release
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::error::cd deploys releases only. Publish one: gh release create vX.Y.Z --generate-notes"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not a commit of main"
+            exit 1
+          fi
+          echo "tag=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      # A release is built once. Deploying it again (a re-run, or gh workflow run) reuses its
+      # image instead of overwriting it with a rebuild.
+      - name: Is its image already on GHCR?
+        id: built
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if docker manifest inspect "$IMAGE:$TAG" > /dev/null 2>&1; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG is already on GHCR: deploying it as it is"
+          fi
+      - if: steps.built.outputs.built != 'true'
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false  # a release builds from scratch, never from a cache another run wrote
       # The real model and the smoke test's two photos, without installing PyTorch.
-      - run: >-
+      - if: steps.built.outputs.built != 'true'
+        run: >-
           uvx --from "dvc[s3]==3.67.1" dvc pull models/patchcore/bottle/model.onnx
           data/raw/mvtec_ad/bottle/test/good/001.png
           data/raw/mvtec_ad/bottle/test/broken_large/002.png
       # Values reach the shell through env, never pasted into the command (template injection).
       - name: Build the image
+        if: steps.built.outputs.built != 'true'
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: >-
           docker build -f docker/api.Dockerfile -t "$IMAGE:$TAG" --build-arg BUILD="$TAG"
+          --label org.opencontainers.image.version="$TAG"
           --label org.opencontainers.image.revision="$GITHUB_SHA" .
       - name: Start the container
+        if: steps.built.outputs.built != 'true'
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: docker run -d -p 8000:8000 --name api "$IMAGE:$TAG"
-      - run: scripts/smoke_test.sh  # the real model: a good bottle passes, a broken one is rejected
+      # The real model: a good bottle passes, a broken one is rejected.
+      - if: steps.built.outputs.built != 'true'
+        run: scripts/smoke_test.sh
       - name: Container logs
         if: failure()
         run: docker logs api
       - name: Push to GHCR
+        if: steps.built.outputs.built != 'true'
         env:
           TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker push "$IMAGE:$TAG"

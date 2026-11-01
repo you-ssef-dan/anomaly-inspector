@@ -174,7 +174,7 @@ loads it), and reads the threshold and image size from the model file.
 
 | Method | Path | Answer |
 | --- | --- | --- |
-| GET | `/health/live` | The process is up, and the build (commit) of the image it runs |
+| GET | `/health/live` | The process is up, and the build (release) of the image it runs |
 | GET | `/health/ready` | The model is loaded (503 until then) |
 | GET | `/v1/model` | Category, threshold, image size, model version |
 | POST | `/v1/predict` | One photo: anomaly score, decision and, with `?heatmap=true`, the heatmap |
@@ -269,7 +269,7 @@ docker run --rm -p 8000:8000 ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0
 Both tags name the same image (one digest). There is no `latest` tag: it moves with every build,
 so a deployment pinned to it would change without anyone deciding it.
 
-How it was published, once and by hand (CI takes this over in phase 8):
+How it was published, once and by hand (since phase 8, a release does it: see [CI/CD](#cicd)):
 
 ```bash
 # 1. give the gh CLI token the right to push packages, and log Docker in to GHCR with it
@@ -331,17 +331,17 @@ The same image runs on [Render](https://render.com)'s free plan:
   minute while it starts again.
 - **Checked like the local container**, with the same smoke test:
   `scripts/smoke_test.sh https://anomaly-inspector-5fe2.onrender.com`.
-- **Deploys go through CD** ([`cd.yml`](.github/workflows/cd.yml), details in [CI/CD](#cicd)).
-  After a change to `main`, it builds the image with the real model, smoke-tests it and pushes it
-  to GHCR under its commit; once approved, it triggers Render's deploy hook with that tag, waits
-  until `/health/live` reports the new build, and smoke-tests the live URL. Render's own *Manual
-  Deploy* button would deploy the tag in Render's settings (`0.1.0`), so a redeploy goes through
-  *Actions* → *cd* → *Run workflow*.
-- **Rollback.** Fast: on Render, *Deploys* → the last good deploy → *Rollback*. The image tags are
-  commits and are never overwritten, so the same image comes back; check it with
-  `curl …/health/live`, which shows the build. Through CI: *Actions* → *cd* → the run of the last
-  good commit → *Re-run all jobs*, which rebuilds, smoke-tests and redeploys it after approval.
-  Either way, the fix then goes to `main` in a pull request, and the next deploy ships it.
+- **Deploys are releases** ([`cd.yml`](.github/workflows/cd.yml), details in [CI/CD](#cicd)).
+  Publishing a release such as `v0.2.0` builds the image with the real model, smoke-tests it and
+  pushes it to GHCR as `0.2.0`; once approved, it triggers Render's deploy hook with that tag,
+  waits until `/health/live` reports the new build, and smoke-tests the live URL. Render's own
+  *Manual Deploy* button would deploy the tag in Render's settings (`0.1.0`), so a redeploy goes
+  through `gh workflow run cd.yml --ref v0.2.0`.
+- **Rollback.** Fast: on Render, *Deploys* → the last good deploy → *Rollback*. A release is built
+  once and its tag never overwritten, so the same image comes back; check it with
+  `curl …/health/live`, which shows the build. Through CI: `gh workflow run cd.yml --ref <last good
+  release>`, which finds that image on GHCR and redeploys it after approval, without rebuilding.
+  Either way, the fix then goes to `main` in a pull request, and the next release ships it.
 - **Why Render:** its free plan runs an existing image at no cost. Google Cloud Run would be faster
   (2 CPUs, about 0.2 s per photo, scales to zero) and is what a production deployment would use;
   moving there is one `gcloud run deploy` with the same image.
@@ -375,7 +375,8 @@ the account: it places a temporary $1 authorisation, not a charge.
 
 No change reaches the live demo unless the code passes its tests, the models pass their quality
 gates, and the image passes a smoke test and a vulnerability scan. Three GitHub Actions workflows
-check this, and `main` only accepts pull requests that pass them.
+check this, and `main` only accepts pull requests that pass them. A merge to `main` deploys
+nothing: a release does, when I decide that `main` is worth shipping.
 
 ```mermaid
 flowchart LR
@@ -383,7 +384,8 @@ flowchart LR
   pr --> mci["model-ci<br/>pipeline + quality gate"]
   ci --> merge{"merge to main<br/>3 required checks"}
   mci --> merge
-  merge --> image["cd: image<br/>real model, smoke test,<br/>push to GHCR"]
+  merge -.->|when I choose| release(["release v0.2.0"])
+  release --> image["cd: image<br/>real model, smoke test,<br/>push 0.2.0 to GHCR"]
   image --> ok{"approval<br/>production"}
   ok --> deploy["cd: deploy<br/>Render, wait for the build,<br/>live smoke test"]
 ```
@@ -393,7 +395,7 @@ flowchart LR
 | [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 326 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
-| [`cd`](.github/workflows/cd.yml) | a merge to `main` that can change the image | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
+| [`cd`](.github/workflows/cd.yml) | a published release (`v*`), or by hand on one | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
 
 ![One change in the Actions tab: ci and model-ci on the pull request, then ci and cd on main](reports/figures/cicd_actions.png)
 
@@ -484,24 +486,33 @@ ok    screw   p95 latency          149 ms, budget 200 ms
 
 ![The pipeline job of pull request #30: every step passes until the quality gate fails](reports/figures/cicd_gate_failed.png)
 
-### After a merge: build, approve, deploy
+### Deploying: a release, then an approval
 
-[`cd`](.github/workflows/cd.yml) runs when a merge to `main` touches what goes into the image
-(`src/`, the Dockerfile, the dependencies, `dvc.lock`, the smoke test or `cd.yml` itself), or by
-hand. Two jobs:
+Merges to `main` are tested but not deployed. Dependency updates in particular change `uv.lock`
+for tools the API image does not even contain (it holds 30 packages), and deploying each of them
+would rebuild the same app again and again. When `main` is worth shipping, I publish a release:
 
-1. **`image`** pulls only three files from DagsHub (the bottle ONNX model and the smoke test's two
-   photos) with `uvx --from "dvc[s3]==3.67.1"`, so PyTorch is never installed. It builds the image
-   with the commit as its build (`--build-arg BUILD=<short commit>`), runs the full smoke test (a
+```bash
+gh release create v0.2.0 --generate-notes    # the notes list the pull requests since the last one
+```
+
+That starts [`cd`](.github/workflows/cd.yml), with two jobs:
+
+1. **`image`** first checks that the release is a `v*` tag on a commit of `main`, and stops
+   otherwise. It pulls only three files from DagsHub (the bottle ONNX model and the smoke test's
+   two photos) with `uvx --from "dvc[s3]==3.67.1"`, so PyTorch is never installed. It builds the
+   image with the version as its build (`--build-arg BUILD=0.2.0`), runs the full smoke test (a
    good bottle passes, a broken one is rejected) and pushes
-   `ghcr.io/you-ssef-dan/anomaly-inspector-api:<short commit>`. Tags are commits, never `latest`,
-   and never overwritten.
-2. **`deploy`** waits for approval in the `production` environment: I am the required reviewer, only
-   `main` can deploy, and admins cannot skip it. Then it calls Render's deploy hook with that image,
-   polls `/health/live` until it reports the new build (Render keeps the old version answering until
-   the new one is ready), and runs the basic smoke test on the live URL.
+   `ghcr.io/you-ssef-dan/anomaly-inspector-api:0.2.0`. A release is built once: if its image is
+   already on GHCR (a re-run, or deploying it again), the job reuses it instead of overwriting it.
+   No `latest` tag either.
+2. **`deploy`** waits for approval in the `production` environment: I am the required reviewer,
+   only `v*` release tags can deploy, and admins cannot skip it. Then it calls Render's deploy
+   hook with that image, polls `/health/live` until it reports the new build (Render keeps the old
+   version answering until the new one is ready), and runs the basic smoke test on the live URL.
 
-On the last deploy, `image` took 56 s and `deploy` 53 s, 40 s of it waiting for Render.
+On a deploy before releases existed (one per merge then, so the build was a commit), `image` took
+56 s and `deploy` 53 s, 40 s of it waiting for Render.
 
 ![A cd run: the image job, then the deploy job after approval for production](reports/figures/cicd_cd_run.png)
 
@@ -510,6 +521,8 @@ On the last deploy, `image` took 56 s and `deploy` 53 s, 40 s of it waiting for 
 - **One deploy at a time** (`concurrency: cd`, never cancelled halfway). A newer run replaces an
   older one that has not started yet. But a run waiting for approval holds the queue until it is
   approved or cancelled, so approve or cancel waiting runs instead of leaving them.
+- **Deploying a release again:** `gh workflow run cd.yml --ref v0.2.0`. Run on a branch instead
+  of a release tag, `cd` refuses.
 - **Rollback:** see [Live on Render](#live-on-render). Render's *Rollback* button brings the
   previous image back without waiting for CI.
 
@@ -525,7 +538,7 @@ On the last deploy, `image` took 56 s and `deploy` 53 s, 40 s of it waiting for 
 | Secret | Stored in | Used by |
 | --- | --- | --- |
 | `DAGSHUB_TOKEN` | repository secrets for Actions **and** for Dependabot | `model-ci` and the `cd` image job, as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (DagsHub speaks the S3 protocol) |
-| `RENDER_DEPLOY_HOOK` | the `production` environment | only the `cd` deploy job, so only an approved deploy from `main` can read it |
+| `RENDER_DEPLOY_HOOK` | the `production` environment | only the `cd` deploy job, so only an approved deploy of a release can read it |
 | `GITHUB_TOKEN` | created by GitHub for each run | pushing to GHCR (`packages: write`, image job only) and the pull request comment (`pull-requests: write`) |
 
 Dependabot's pull requests do not get the Actions secrets, only the Dependabot ones, so the token
@@ -582,13 +595,14 @@ gh pr checks --watch
 gh pr update-branch 42 --rebase
 gh pr merge 42 --squash
 
-# Follow the deploy that the merge started (it waits for approval in the Actions tab)
+# Ship main: publish a release, then approve its deploy in the Actions tab
+gh release create v0.2.0 --generate-notes
 gh run list --workflow cd --limit 3
 gh run watch <run id>
-curl -s https://anomaly-inspector-5fe2.onrender.com/health/live   # {"status":"live","build":"<commit>"}
+curl -s https://anomaly-inspector-5fe2.onrender.com/health/live   # {"status":"live","build":"0.2.0"}
 
-# Deploy main again by hand
-gh workflow run cd.yml --ref main
+# Deploy a release again (or an older one, to roll back): reuses its image from GHCR
+gh workflow run cd.yml --ref v0.2.0
 
 # What a change does to the models, before opening the pull request
 uv run dvc repro
@@ -618,7 +632,8 @@ uvx --from actionlint-py actionlint
 2. **Secrets:** *Settings* → *Secrets and variables* → *Actions* → `DAGSHUB_TOKEN`, and the same
    under *Dependabot*.
 3. **Environment:** *Settings* → *Environments* → `production`: yourself as required reviewer,
-   deployment branches limited to `main`, *Allow administrators to bypass* off. Its secret
+   deployments limited to the tag rule `v*` (*Deployment branches and tags* → *Add deployment
+   branch or tag rule* → *Tag*), *Allow administrators to bypass* off. Its secret
    `RENDER_DEPLOY_HOOK` is the whole deploy hook URL from Render (*Settings* → *Deploy Hook*).
 4. **GHCR:** the package was first pushed from the laptop, so Actions could not push to it
    (`permission_denied: write_package`): *Package settings* → *Manage Actions access* → add the
@@ -639,6 +654,10 @@ uvx --from actionlint-py actionlint
   read it.
 - **The floors are in `gates.yaml`**, not a `gates` section of `params.yaml` (see the quality gate).
 - **`dvc pull` then `dvc repro`** instead of `dvc repro --pull`, which would not fetch the images.
+- **A release deploys, not every merge.** At first `cd` ran on every merge that touched the image's
+  inputs, but `uv.lock` changes for dev tools too (pytest-xdist, virtualenv), so it kept deploying
+  identical apps. A `develop` branch would have solved it with two pull requests per change; a
+  release keeps a single `main` and makes shipping a deliberate step.
 
 ## Quick start
 
@@ -722,7 +741,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
   and secrets, and CI on every pull request. `main` is protected: changes arrive through up-to-date
   pull requests that pass `checks` (lint, types, tests), `docker` (the image builds, answers its
   smoke test and has no fixable high or critical vulnerability) and `pipeline` (the models still
-  pass the quality gate). A deploy needs a human approval. See [CI/CD](#cicd).
+  pass the quality gate). A deploy is a release, and needs a human approval. See [CI/CD](#cicd).
 - **Careful with the supply chain.** Actions pinned to commit SHAs, least-privilege tokens,
   Dependabot with a 7-day cooldown, and an image scan on every pull request.
 
