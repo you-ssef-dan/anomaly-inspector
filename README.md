@@ -5,6 +5,7 @@
 [![cd](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/cd.yml/badge.svg)](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/cd.yml)
 ![python](https://img.shields.io/badge/python-3.12-blue)
 ![license](https://img.shields.io/badge/code-Apache--2.0-green)
+[![release](https://img.shields.io/github/v/release/you-ssef-dan/anomaly-inspector)](https://github.com/you-ssef-dan/anomaly-inspector/releases)
 
 **Visual inspection for factory parts: it learns what a good part looks like, flags the ones that are
 not, and draws a heatmap showing where the defect is.** Built end to end on a CPU laptop, from raw
@@ -317,7 +318,7 @@ The same image runs on [Render](https://render.com)'s free plan:
 
 | Render setting | Value | Why |
 | --- | --- | --- |
-| Source | existing image `ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0` | the image tested above, pinned to a tag |
+| Source | existing image `ghcr.io/you-ssef-dan/anomaly-inspector-api:0.1.0` | the image tested above, pinned to a tag; each release now deploys its own tag through the deploy hook |
 | Instance | Free: 0.1 CPU, 512 MB of RAM, Frankfurt | no cost |
 | `PORT` | `8000` | where the app listens (Render expects 10000 by default) |
 | `API_THREADS` | `1` | a second ONNX thread does not help on 0.1 CPU |
@@ -397,7 +398,7 @@ flowchart LR
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
 | [`cd`](.github/workflows/cd.yml) | a published release (`v*`), or by hand on one | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
 
-![One change in the Actions tab: ci and model-ci on the pull request, then ci and cd on main](reports/figures/cicd_actions.png)
+![Two changes in the Actions tab: each pull request ran ci and model-ci, each merge ran ci on main, and neither deployed](reports/figures/cicd_actions.png)
 
 ### On every pull request
 
@@ -511,10 +512,11 @@ That starts [`cd`](.github/workflows/cd.yml), with two jobs:
    hook with that image, polls `/health/live` until it reports the new build (Render keeps the old
    version answering until the new one is ready), and runs the basic smoke test on the live URL.
 
-On a deploy before releases existed (one per merge then, so the build was a commit), `image` took
-56 s and `deploy` 53 s, 40 s of it waiting for Render.
+The first release, [v0.2.0](https://github.com/you-ssef-dan/anomaly-inspector/releases/tag/v0.2.0),
+went live this way: `image` took 42 s and `deploy` 51 s, 40 s of it waiting for Render, and
+`/health/live` now answers `{"status":"live","build":"0.2.0"}`.
 
-![A cd run: the image job, then the deploy job after approval for production](reports/figures/cicd_cd_run.png)
+![The cd run of release v0.2.0: the image job, then the deploy job after approval for production](reports/figures/cicd_cd_run.png)
 
 - **Approving:** *Actions* → *cd* → the waiting run → *Review deployments* → tick *production* →
   *Approve and deploy*. GitHub also notifies the reviewer.
@@ -701,7 +703,7 @@ explains where to get it, how it is verified and how it is split.
 
 ```
 src/anomaly_inspector/
-  preprocessing.py   one image function shared by training and (later) serving; numpy + Pillow only
+  preprocessing.py   one image function shared by training and serving; numpy + Pillow only
   config.py          typed settings read from params.yaml
   tracking.py        what every MLflow run records (code, data and hardware tags, params)
   registry.py        champion and challenger: the promotion rules
