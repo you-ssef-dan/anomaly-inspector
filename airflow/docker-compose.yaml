@@ -61,10 +61,11 @@ x-airflow-common:
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.3.2}
   # build: .
-  env_file:
-    - ${ENV_FILE_PATH:-.env}
+  # No env_file: .env only fills in the ${...} values of this file, so each container gets just
+  # the variables listed for it, and the secrets only reach the scheduler.
   environment:
     &airflow-common-env
+    INSPECTION_WORKSPACE: ${INSPECTION_WORKSPACE:?set it in .env}
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__PARALLELISM: '4'  # the default, 32 task processes at once, is too many here
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
@@ -145,6 +146,12 @@ services:
     group_add:
       - "${DOCKER_GID:?set it in .env (getent group docker)}"  # allowed to use the socket
     networks: [default, inspection]
+    environment:
+      <<: *airflow-common-env
+      # The tasks' secrets, here only. make airflow-up reads the DagsHub token from
+      # ../.dvc/config.local, its one copy on this laptop.
+      DAGSHUB_TOKEN: ${DAGSHUB_TOKEN:-}
+      GH_TOKEN: ${GH_TOKEN:-}
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
       interval: 30s

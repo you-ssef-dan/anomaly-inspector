@@ -31,8 +31,10 @@ api-down:
 	docker compose --profile api rm --stop --force api
 # Airflow, after MLflow and the API: they create the `inspection` network it joins.
 # Needs airflow/.env (cp airflow/.env.example airflow/.env, then fill it). UI: http://localhost:8080
+# The DagsHub token comes from .dvc/config.local, its only copy on this laptop.
 airflow-up: mlflow-up api-up
-	cd airflow && docker compose up -d
+	token="$$(uv run dvc config --local remote.dagshub.secret_access_key)" && \
+		cd airflow && DAGSHUB_TOKEN="$$token" docker compose up -d
 airflow-down:
 	cd airflow && docker compose down
 # Against the running API: ready, a good bottle passes, a broken one is rejected.
