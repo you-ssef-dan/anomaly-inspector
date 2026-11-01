@@ -5,7 +5,7 @@
 #   docker run --rm -p 8000:8000 anomaly-inspector-api
 
 # uv as a stage of its own: Dependabot only updates images named on FROM lines.
-FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
 
 # Stage 1: build the virtual environment with uv. Nothing of this stage but .venv is kept.
 FROM python:3.12-slim-trixie AS builder
