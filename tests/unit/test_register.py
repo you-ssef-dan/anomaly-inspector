@@ -1,10 +1,9 @@
-"""register_model.py on the fake project: the pipeline's ONNX model goes to the registry, once.
+"""pipelines/register.py on the fake project: the pipeline's ONNX model goes to the registry, once.
 
 The fake project has no DVC repository, so stale_stages is replaced in most tests; the last
 test runs it against a real one.
 """
 
-import importlib.util
 import json
 import os
 import subprocess
@@ -25,19 +24,12 @@ from anomaly_inspector.evaluation.evaluate import predict
 from anomaly_inspector.evaluation.metrics import image_auroc
 from anomaly_inspector.export.onnx_export import OnnxPatchCore, read_metadata
 from anomaly_inspector.pipelines import evaluate_patchcore, export_patchcore, train_patchcore
-
-SCRIPT = Path(__file__).parents[2] / "scripts" / "register_model.py"
+from anomaly_inspector.pipelines import register as registration
 
 
 @pytest.fixture(scope="module")
 def script() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("register_model", SCRIPT)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["register_model"] = module
-    spec.loader.exec_module(module)
-    return module
+    return registration
 
 
 @pytest.fixture
@@ -58,7 +50,7 @@ def the_evaluation() -> mlflow.entities.Run:
 def test_the_onnx_model_joins_the_run_that_evaluated_it_and_becomes_champion(
     script: ModuleType, evaluated: Path, tmp_path: Path
 ) -> None:
-    assert script.register("bottle") == "1"
+    assert script.register("bottle") == ("1", True)
 
     client = mlflow.MlflowClient()
     run = the_evaluation()
@@ -95,9 +87,9 @@ def test_an_older_pytorch_version_of_the_same_run_does_not_count(
     client.create_registered_model("patchcore-bottle")
     client.create_model_version("patchcore-bottle", f"{run.info.artifact_uri}/old", run.info.run_id)
 
-    assert script.register("bottle") == "2"
+    assert script.register("bottle").version == "2"
     assert client.get_model_version("patchcore-bottle", "2").tags == {"format": "onnx"}
-    assert script.register("bottle") == "2"  # and only once
+    assert script.register("bottle") == ("2", False)  # and only once: no new promotion
 
 
 def test_the_pipeline_must_be_fresh_up_to_the_export(
@@ -115,8 +107,8 @@ def test_the_pipeline_must_be_fresh_up_to_the_export(
 
 
 def test_registering_twice_creates_one_version(script: ModuleType, evaluated: Path) -> None:
-    assert script.register("bottle") == "1"
-    assert script.register("bottle") == "1"
+    assert script.register("bottle") == ("1", True)
+    assert script.register("bottle") == ("1", False)
     versions = mlflow.MlflowClient().search_model_versions("name = 'patchcore-bottle'")
     assert len(versions) == 1
 
@@ -179,3 +171,32 @@ def test_stale_stages_lists_what_dvc_would_rerun_upstream_included(
 
     Path("input.txt").write_text("2\n")
     assert script.stale_stages("second") == ["first"]
+
+
+def test_the_last_line_says_which_categories_have_a_new_champion(
+    script: ModuleType,
+    fake_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    outcomes = {"bottle": script.Registration("3", True), "screw": script.Registration("1", False)}
+    asked: list[str] = []
+
+    def register(category: str) -> object:
+        asked.append(category)
+        return outcomes[category]
+
+    monkeypatch.setattr(script, "register", register)
+    script.main(["--all"])
+    assert asked == ["bottle", "screw"]  # every category in params.yaml, in its order
+    last = capsys.readouterr().out.splitlines()[-1]
+    assert json.loads(last) == {"bottle": True, "screw": False}
+
+    script.main(["--category", "screw"])
+    assert json.loads(capsys.readouterr().out.splitlines()[-1]) == {"screw": False}
+
+
+@pytest.mark.parametrize("args", [[], ["--all", "--category", "bottle"]])
+def test_categories_are_named_or_all_of_them(script: ModuleType, args: list[str]) -> None:
+    with pytest.raises(SystemExit):
+        script.main(args)

@@ -17,10 +17,13 @@ RUN apt-get update \
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 WORKDIR /opt
+# The image records which uv.lock it was built from: the retrain_patchcore DAG refuses to train
+# when the repository's uv.lock differs (make train-image rebuilds it).
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-dev --extra train --no-install-project
+    uv sync --locked --no-dev --extra train --no-install-project \
+    && sha256sum < uv.lock > /opt/uv.lock.sha256
 # Not root. The mounted repository belongs to another user, which git refuses unless told.
 RUN useradd --create-home --uid 10001 app \
     && git config --system --add safe.directory /repo

@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down airflow-up airflow-down smoke
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down airflow-up airflow-down train-image smoke
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -37,6 +37,9 @@ airflow-up: mlflow-up api-up
 		cd airflow && DAGSHUB_TOKEN="$$token" docker compose up -d
 airflow-down:
 	cd airflow && docker compose down
+# The image Airflow trains in. Rebuild it when uv.lock changes: the DAG refuses a stale one.
+train-image:
+	docker build -f docker/train.Dockerfile -t anomaly-inspector-train .
 # Against the running API: ready, a good bottle passes, a broken one is rejected.
 smoke:
 	scripts/smoke_test.sh
