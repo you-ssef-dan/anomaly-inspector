@@ -47,7 +47,8 @@ jobs:
       - name: Container logs
         if: failure()
         run: docker logs api
-      # Pinned to the commit of v0.35.0: the tags of older versions were hijacked in March 2026.
+      # Pinned to a commit, never a tag: the tags of versions before 0.35.0 were hijacked in
+      # March 2026. Dependabot moves the pin, once a release is 7 days old.
       # Fixable HIGH and CRITICAL findings fail the job; Debian lists many without a fix yet.
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
