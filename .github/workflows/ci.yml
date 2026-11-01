@@ -21,7 +21,10 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src
-      - run: uv run pytest -m "not slow and not integration"
+      # 4 test workers, one per CPU of GitHub's runners: about half the time of one at a time.
+      # Every test works in its own temporary folder, so they can run side by side. Not
+      # `-n auto`: it counts physical cores and ignores how many CPUs the job may use.
+      - run: uv run pytest -n 4 -m "not slow and not integration"
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
