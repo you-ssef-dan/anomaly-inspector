@@ -57,3 +57,13 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+  # The Airflow DAGs import, keep their shape, and their Python tasks work. In Airflow's own
+  # image, where they run: the project's environment has no Airflow, and these tests skip there.
+  airflow-dags:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make test-dags
