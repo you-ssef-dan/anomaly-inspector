@@ -1,8 +1,8 @@
 {
-  "onnx_aupro": 0.940971691381939,
+  "onnx_aupro": 0.9364221370340052,
   "onnx_image_auroc": 1.0,
-  "onnx_mb": 108.971184,
-  "onnx_ms_per_image": 54.28367957150234,
-  "pytorch_aupro": 0.9409717463483634,
+  "onnx_mb": 110.101679,
+  "onnx_ms_per_image": 68.72674992865498,
+  "pytorch_aupro": 0.9364220212071223,
   "pytorch_image_auroc": 1.0
 }
