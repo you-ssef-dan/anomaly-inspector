@@ -20,6 +20,16 @@
 #
 # WARNING: This configuration is for local development. Do not use it in a production deployment.
 #
+# Changed for this project (Phase 9), from the official 3.3.2 file:
+# - LocalExecutor: tasks run in the scheduler, so no redis, Celery worker or flower (about 640 MB).
+# - No example DAGs; at most 4 tasks at once on this laptop; FERNET_KEY and JWT secret from .env.
+# - The scheduler gets the Docker socket (to start the training image with DockerOperator), the
+#   workspace at the same absolute path as on the host (DockerOperator mounts host paths), and the
+#   `inspection` network, where it reaches mlflow:5000 and api:8000. Start the main
+#   docker-compose.yml first: it creates that network (make mlflow-up api-up).
+# - The UI listens on 127.0.0.1 only.
+# Values come from .env (see .env.example).
+#
 # This configuration supports basic configuration using environment variables or an .env file
 # The following variables are supported:
 #
@@ -55,16 +65,15 @@ x-airflow-common:
     - ${ENV_FILE_PATH:-.env}
   environment:
     &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__PARALLELISM: '4'  # the default, 32 task processes at once, is too many here
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY:?set it in .env}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-    AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
-    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-airflow_jwt_secret}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:?set it in .env}
     AIRFLOW__API_AUTH__JWT_ISSUER: ${AIRFLOW__API_AUTH__JWT_ISSUER:-airflow}
     # yamllint disable rule:line-length
     # Use simple http server on scheduler for health checks
@@ -84,8 +93,6 @@ x-airflow-common:
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
-    redis:
-      condition: service_healthy
     postgres:
       condition: service_healthy
 
@@ -103,20 +110,6 @@ services:
       interval: 10s
       retries: 5
       start_period: 5s
-    restart: always
-
-  redis:
-    # Redis is limited to 7.2-bookworm due to licencing change
-    # https://redis.io/blog/redis-adopts-dual-source-available-licensing/
-    image: redis:7.2-bookworm
-    expose:
-      - 6379
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 30s
-      retries: 50
-      start_period: 30s
     restart: always
 
   airflow-apiserver:
@@ -139,6 +132,19 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    # With LocalExecutor the tasks run here, so this is the one service that needs more.
+    volumes:  # a list replaces the common one: the first four are the common mounts
+      - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+      - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+      - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+      # Start containers on the host's Docker. Whoever controls this socket controls the host:
+      # only this service gets it, and the UI is not reachable from the network.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${INSPECTION_WORKSPACE:?set it in .env}:${INSPECTION_WORKSPACE}
+    group_add:
+      - "${DOCKER_GID:?set it in .env (getent group docker)}"  # allowed to use the socket
+    networks: [default, inspection]
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
       interval: 30s
@@ -163,29 +169,6 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
-  airflow-worker:
-    <<: *airflow-common
-    command: celery worker
-    healthcheck:
-      # yamllint disable rule:line-length
-      test: ["CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    environment:
-      <<: *airflow-common-env
-      # Required to handle warm shutdown of the celery workers properly
-      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
-      DUMB_INIT_SETSID: "0"
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-apiserver:
-        condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
 
@@ -311,27 +294,9 @@ services:
     depends_on:
       <<: *airflow-common-depends-on
 
-  # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
-  # or by explicitly targeted on the command line e.g. docker-compose up flower.
-  # See: https://docs.docker.com/compose/profiles/
-  flower:
-    <<: *airflow-common
-    command: celery flower
-    profiles:
-      - flower
-    ports:
-      - "5555:5555"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
 volumes:
   postgres-db-volume:
+
+networks:
+  inspection:
+    external: true  # created by the main docker-compose.yml; mlflow and api live there
