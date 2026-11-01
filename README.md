@@ -1,6 +1,8 @@
 # Anomaly Inspector
 
 [![ci](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/ci.yml)
+[![model-ci](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/model-ci.yml/badge.svg)](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/model-ci.yml)
+[![cd](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/cd.yml/badge.svg)](https://github.com/you-ssef-dan/anomaly-inspector/actions/workflows/cd.yml)
 ![python](https://img.shields.io/badge/python-3.12-blue)
 ![license](https://img.shields.io/badge/code-Apache--2.0-green)
 
@@ -13,8 +15,8 @@ Upload a photo of a bottle and see the decision and the heatmap ([how it is depl
 It runs on a free plan, so the first visit can take about a minute to wake it up.
 
 > **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline, the
-> ONNX export, the API, its Docker image (public on GHCR) and a live demo are done; CI/CD gates,
-> retraining and monitoring come next. See the [roadmap](#roadmap).
+> ONNX export, the API, its Docker image (public on GHCR), a live demo and [CI/CD](#cicd) with
+> model quality gates are done; retraining and monitoring come next. See the [roadmap](#roadmap).
 
 ## The idea
 
@@ -329,11 +331,12 @@ The same image runs on [Render](https://render.com)'s free plan:
   minute while it starts again.
 - **Checked like the local container**, with the same smoke test:
   `scripts/smoke_test.sh https://anomaly-inspector-5fe2.onrender.com`.
-- **Deploys go through CD** ([`cd.yml`](.github/workflows/cd.yml)). After a change to `main`, it
-  builds the image with the real model, smoke-tests it and pushes it to GHCR under its commit;
-  once approved, it triggers Render's deploy hook with that tag, waits until `/health/live` reports
-  the new build, and smoke-tests the live URL. Render's own *Manual Deploy* button would deploy the
-  tag in Render's settings (`0.1.0`), so a redeploy goes through *Actions* → *cd* → *Run workflow*.
+- **Deploys go through CD** ([`cd.yml`](.github/workflows/cd.yml), details in [CI/CD](#cicd)).
+  After a change to `main`, it builds the image with the real model, smoke-tests it and pushes it
+  to GHCR under its commit; once approved, it triggers Render's deploy hook with that tag, waits
+  until `/health/live` reports the new build, and smoke-tests the live URL. Render's own *Manual
+  Deploy* button would deploy the tag in Render's settings (`0.1.0`), so a redeploy goes through
+  *Actions* → *cd* → *Run workflow*.
 - **Rollback.** Fast: on Render, *Deploys* → the last good deploy → *Rollback*. The image tags are
   commits and are never overwritten, so the same image comes back; check it with
   `curl …/health/live`, which shows the build. Through CI: *Actions* → *cd* → the run of the last
@@ -367,6 +370,275 @@ the account: it places a temporary $1 authorisation, not a charge.
    *Deploy latest reference*.
 
 </details>
+
+## CI/CD
+
+No change reaches the live demo unless the code passes its tests, the models pass their quality
+gates, and the image passes a smoke test and a vulnerability scan. Three GitHub Actions workflows
+check this, and `main` only accepts pull requests that pass them.
+
+```mermaid
+flowchart LR
+  pr([Pull request]) --> ci["ci<br/>checks + docker"]
+  pr --> mci["model-ci<br/>pipeline + quality gate"]
+  ci --> merge{"merge to main<br/>3 required checks"}
+  mci --> merge
+  merge --> image["cd: image<br/>real model, smoke test,<br/>push to GHCR"]
+  image --> ok{"approval<br/>production"}
+  ok --> deploy["cd: deploy<br/>Render, wait for the build,<br/>live smoke test"]
+```
+
+| Workflow | Runs on | What it does | Time |
+| --- | --- | --- | --- |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 326 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
+| [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
+| [`cd`](.github/workflows/cd.yml) | a merge to `main` that can change the image | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
+
+![One change in the Actions tab: ci and model-ci on the pull request, then ci and cd on main](reports/figures/cicd_actions.png)
+
+### On every pull request
+
+**`checks`** runs what `make check` runs locally. The tests run on 4 workers
+([pytest-xdist](https://pytest-xdist.readthedocs.io), `pytest -n 4`), one per CPU of GitHub's
+runners: every test works in its own temporary folder, so they can run side by side. On 4 CPUs
+locally this halves the time (222 s → 110 s, same tests, same 99.4% coverage); GitHub's shared
+machines vary more, 108 to 221 s so far against 150 to 245 s one at a time. It is `-n 4` and not
+`-n auto`, because `auto` counts physical cores and ignores how many CPUs the job may use: on the
+laptop it started 14 workers and ran out of memory.
+
+**`docker`** tests the packaging, not the model:
+
+- The real model lives in DVC, so the job builds the image around a tiny random one
+  ([`make_tiny_model.py`](scripts/make_tiny_model.py): ResNet-18, 64 px, random weights, a few
+  seconds).
+- [`smoke_test.sh --basic`](scripts/smoke_test.sh): the API gets ready, `/v1/model` describes
+  the model, a random PNG gets a score and a heatmap, and a text file is refused (415).
+- The image must not import PyTorch and must run as user 10001, not root.
+- [Trivy](https://trivy.dev) fails the job on any HIGH or CRITICAL vulnerability that has a fix
+  (`ignore-unfixed`: Debian lists many with no fix yet).
+
+**`pipeline`** checks the models, with the data and models from the DVC remote on
+[DagsHub](https://dagshub.com) (private, because of the MVTec license):
+
+1. **Is it an ML change?** It compares the pull request with `main`. Code in `src/`,
+   `params.yaml`, `gates.yaml`, `dvc.yaml` or `dvc.lock`, data pointers, `.dvc/config`, the
+   dependencies or the workflow itself count. Anything else passes in seconds: the gate that
+   passed on `main` still holds. It runs on every pull request instead of using a `paths:` filter,
+   because a required check that never starts blocks the merge forever.
+2. **`dvc pull data/raw/mvtec_ad.dvc dvc.yaml`.** The images are pulled explicitly: the stages read
+   them through the manifest, so they are not declared inputs, and `dvc repro --pull` would skip
+   them.
+3. **`dvc repro`.** Only the stages whose inputs changed run again.
+4. **A comment on the pull request**, edited in place on each push: the params and metrics diff
+   against `main` (`dvc params diff`, `dvc metrics diff`).
+5. **The quality gate.**
+
+### The quality gate
+
+[`gate.py`](src/anomaly_inspector/pipelines/gate.py) reads the reports DVC wrote and fails the
+job if a model falls below its floor in [`gates.yaml`](gates.yaml). The floors are the current
+holdout results minus about one point, rounded down:
+
+| Category | Image AUROC floor (now) | AUPRO floor (now) |
+| --- | --- | --- |
+| bottle | 0.99 (1.000) | 0.93 (0.941) |
+| carpet | 0.97 (0.987) | 0.93 (0.942) |
+| screw | 0.88 (0.892) | 0.87 (0.885) |
+
+Each ONNX model must also answer within the latency budget (p95 ≤ 200 ms, the
+`promotion.latency_budget_ms` the registry already uses), and a missing report fails like a bad
+score. ONNX and PyTorch agreeing is not re-checked: the export stage already stops when their
+scores differ by 1e-3 or more. The floors have their own file because `params.yaml` is read
+through `config.py`, which refuses unknown keys, and changing `config.py` would make the whole
+pipeline run again for nothing.
+
+```console
+$ uv run python -m anomaly_inspector.pipelines.gate      # on main
+ok    bottle  holdout_image_auroc  1.000, floor 0.990
+ok    bottle  holdout_aupro        0.941, floor 0.930
+ok    bottle  p95 latency          82 ms, budget 200 ms
+...
+all 9 gates passed
+```
+
+**It catches a bad model.** Pull request [#30](https://github.com/you-ssef-dan/anomaly-inspector/pull/30)
+shrank the memory bank 100 times (`coreset_ratio` 0.01 → 0.0001). `model-ci` retrained the three
+models (16 min on GitHub), commented the drop and failed at the gate, so the pull request could not
+be merged and was closed:
+
+```console
+FAIL  bottle  holdout_image_auroc  0.906, floor 0.990
+FAIL  bottle  holdout_aupro        0.647, floor 0.930
+ok    bottle  p95 latency          151 ms, budget 200 ms
+ok    carpet  holdout_image_auroc  0.995, floor 0.970
+ok    carpet  holdout_aupro        0.939, floor 0.930
+ok    carpet  p95 latency          143 ms, budget 200 ms
+FAIL  screw   holdout_image_auroc  0.556, floor 0.880
+FAIL  screw   holdout_aupro        0.522, floor 0.870
+ok    screw   p95 latency          149 ms, budget 200 ms
+4 of 9 gates failed
+```
+
+![The model-ci comment on pull request #30: the coreset ratio change and the metrics that dropped](reports/figures/cicd_bad_pr_comment.png)
+
+![The pipeline job of pull request #30: every step passes until the quality gate fails](reports/figures/cicd_gate_failed.png)
+
+### After a merge: build, approve, deploy
+
+[`cd`](.github/workflows/cd.yml) runs when a merge to `main` touches what goes into the image
+(`src/`, the Dockerfile, the dependencies, `dvc.lock`, the smoke test or `cd.yml` itself), or by
+hand. Two jobs:
+
+1. **`image`** pulls only three files from DagsHub (the bottle ONNX model and the smoke test's two
+   photos) with `uvx --from "dvc[s3]==3.67.1"`, so PyTorch is never installed. It builds the image
+   with the commit as its build (`--build-arg BUILD=<short commit>`), runs the full smoke test (a
+   good bottle passes, a broken one is rejected) and pushes
+   `ghcr.io/you-ssef-dan/anomaly-inspector-api:<short commit>`. Tags are commits, never `latest`,
+   and never overwritten.
+2. **`deploy`** waits for approval in the `production` environment: I am the required reviewer, only
+   `main` can deploy, and admins cannot skip it. Then it calls Render's deploy hook with that image,
+   polls `/health/live` until it reports the new build (Render keeps the old version answering until
+   the new one is ready), and runs the basic smoke test on the live URL.
+
+On the last deploy, `image` took 56 s and `deploy` 53 s, 40 s of it waiting for Render.
+
+![A cd run: the image job, then the deploy job after approval for production](reports/figures/cicd_cd_run.png)
+
+- **Approving:** *Actions* → *cd* → the waiting run → *Review deployments* → tick *production* →
+  *Approve and deploy*. GitHub also notifies the reviewer.
+- **One deploy at a time** (`concurrency: cd`, never cancelled halfway). A newer run replaces an
+  older one that has not started yet. But a run waiting for approval holds the queue until it is
+  approved or cancelled, so approve or cancel waiting runs instead of leaving them.
+- **Rollback:** see [Live on Render](#live-on-render). Render's *Rollback* button brings the
+  previous image back without waiting for CI.
+
+### `main` is protected
+
+- A pull request merges only when `checks`, `docker` and `pipeline` are green **and** its branch is
+  up to date with `main`, so the checks ran on exactly what will be merged. When `main` moved in
+  the meantime, `gh pr update-branch <number> --rebase` updates it and the checks run again.
+- Pull requests are squash-merged: one commit on `main` per change.
+
+### Secrets: three, each where it is needed
+
+| Secret | Stored in | Used by |
+| --- | --- | --- |
+| `DAGSHUB_TOKEN` | repository secrets for Actions **and** for Dependabot | `model-ci` and the `cd` image job, as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (DagsHub speaks the S3 protocol) |
+| `RENDER_DEPLOY_HOOK` | the `production` environment | only the `cd` deploy job, so only an approved deploy from `main` can read it |
+| `GITHUB_TOKEN` | created by GitHub for each run | pushing to GHCR (`packages: write`, image job only) and the pull request comment (`pull-requests: write`) |
+
+Dependabot's pull requests do not get the Actions secrets, only the Dependabot ones, so the token
+is in both. Changing the token means updating three places: `.dvc/config.local`, the Actions secret
+and the Dependabot secret.
+
+### Dependabot
+
+[`dependabot.yml`](.github/dependabot.yml) opens pull requests every week for the GitHub Actions,
+the Python packages (`uv.lock`) and the Docker base images. They go through the same three checks
+as any change.
+
+- **7-day cooldown:** a release is proposed only once it is a week old, so a hijacked release has
+  time to be caught before it reaches this repository.
+- **Grouped:** one pull request for all the actions, one for the minor and patch Python updates;
+  a major version gets its own.
+- **Held back on purpose:** Python stays on 3.12 (what `uv.lock` and the tests run on), and
+  `docker-compose.yml` is left out (a new major Postgres needs a migration of the MLflow data).
+- **uv is a `FROM` stage** in the Dockerfiles: Dependabot only updates images named on `FROM`
+  lines, so a plain `COPY --from=ghcr.io/astral-sh/uv:…` would never be updated.
+- **Security alerts and security updates are on:** when an advisory is published for a
+  dependency, a fix pull request opens right away, with no cooldown. On the first day it found 4
+  vulnerable packages in `uv.lock`. The fixes for three went in as one pull request
+  ([#41](https://github.com/you-ssef-dan/anomaly-inspector/pull/41)) instead of three. The fourth,
+  diskcache (through DVC), has no fixed version yet; exploiting it needs someone who can already
+  write to the DVC cache folder.
+
+![Dependabot's first pull requests: grouped Python and Actions updates, the uv image, and three security fixes](reports/figures/cicd_dependabot_prs.png)
+
+### Hardened workflows
+
+- **Every action is pinned to a full commit SHA**, with the version in a comment. Tags can be
+  moved: in March 2026 the tags of `aquasecurity/trivy-action` before 0.35.0 were pointed at
+  malicious code. A pin only changes through a Dependabot pull request, and the new SHA is checked
+  against the release before merging (command below).
+- **Least privilege:** each workflow declares `permissions:`, read-only by default; only the jobs
+  that need more get it.
+- **No token left behind:** every checkout uses `persist-credentials: false`, since no job pushes
+  with git.
+- **No template injection:** values reach the shell through `env:`, never pasted into the command
+  with `${{ … }}`.
+- **No `pull_request_target`:** pull request code never runs with the repository's secrets.
+- **Audited** with [zizmor](https://docs.zizmor.sh) (its online mode also checks that each pinned
+  SHA belongs to its action) and [actionlint](https://github.com/rhysd/actionlint): no findings.
+
+### Using it day to day
+
+```bash
+# Open a pull request and watch its three checks
+gh pr create --fill --base main
+gh pr checks --watch
+
+# "Not up to date with the base branch": main moved, update and let the checks run again
+gh pr update-branch 42 --rebase
+gh pr merge 42 --squash
+
+# Follow the deploy that the merge started (it waits for approval in the Actions tab)
+gh run list --workflow cd --limit 3
+gh run watch <run id>
+curl -s https://anomaly-inspector-5fe2.onrender.com/health/live   # {"status":"live","build":"<commit>"}
+
+# Deploy main again by hand
+gh workflow run cd.yml --ref main
+
+# What a change does to the models, before opening the pull request
+uv run dvc repro
+uv run dvc metrics diff main --md
+uv run python -m anomaly_inspector.pipelines.gate
+
+# Dependabot pull request out of date: comment on it
+#   @dependabot rebase
+
+# Store the DagsHub token as a Dependabot secret without ever printing it
+uv run dvc config --local remote.dagshub.secret_access_key | gh secret set DAGSHUB_TOKEN --app dependabot
+
+# Check that a pin matches the release: the ^{} line is the commit the tag points to
+git ls-remote https://github.com/aquasecurity/trivy-action 'refs/tags/v0.36.0*'
+
+# Audit the workflows
+GH_TOKEN=$(gh auth token) uvx zizmor .github/
+uvx --from actionlint-py actionlint
+```
+
+<details>
+<summary><b>The settings this needs on GitHub, DagsHub and Render</b></summary>
+
+1. **DagsHub:** a **private** repository used only as the DVC remote (S3 protocol, endpoint
+   `https://dagshub.com/you-ssef-dan/anomaly-inspector.s3`), and a token from
+   *Settings* → *Tokens*. The token goes in `.dvc/config.local` (ignored by git) on the laptop.
+2. **Secrets:** *Settings* → *Secrets and variables* → *Actions* → `DAGSHUB_TOKEN`, and the same
+   under *Dependabot*.
+3. **Environment:** *Settings* → *Environments* → `production`: yourself as required reviewer,
+   deployment branches limited to `main`, *Allow administrators to bypass* off. Its secret
+   `RENDER_DEPLOY_HOOK` is the whole deploy hook URL from Render (*Settings* → *Deploy Hook*).
+4. **GHCR:** the package was first pushed from the laptop, so Actions could not push to it
+   (`permission_denied: write_package`): *Package settings* → *Manage Actions access* → add the
+   repository with the *Write* role.
+5. **Branch protection** on `main`: required checks `checks`, `docker`, `pipeline`, and
+   *Require branches to be up to date before merging*.
+6. **Dependabot:** *Settings* → *Advanced Security* → enable *Dependabot alerts* and *Dependabot
+   security updates*. Version updates start on their own once `dependabot.yml` is on `main`.
+
+</details>
+
+**Where this differs from the [Phase 8 plan](guides/phases/08-ci-cd-github-actions.md):**
+
+- **DagsHub instead of Cloudflare R2** for the DVC remote: R2 needs a card, DagsHub's free plan
+  holds the 2 GB. The cost: its token opens the whole DagsHub account, not one bucket.
+- **Render instead of Cloud Run**, so no Google Cloud OIDC either. There are no cloud keys at all,
+  but the deploy hook URL is a long-lived secret, which is why only the approved deploy job can
+  read it.
+- **The floors are in `gates.yaml`**, not a `gates` section of `params.yaml` (see the quality gate).
+- **`dvc pull` then `dvc repro`** instead of `dvc repro --pull`, which would not fetch the images.
 
 ## Quick start
 
@@ -421,13 +693,16 @@ src/anomaly_inspector/
   export/            ONNX export with metadata, INT8 quantisation, latency benchmark
   pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise
   serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
-scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery
+scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery,
+                     the smoke test and the tiny model CI builds the image with
 docker/              the API, training and MLflow images (docker-compose.yml runs MLflow and the API)
+.github/             the ci, model-ci and cd workflows, and the Dependabot settings
 tests/               unit and API tests on generated fake data, slow tests, a Locust load test
 notebooks/           exploratory data analysis (no outputs stored in git)
 docs/                data card, experiment findings
 reports/             benchmark and experiment results, charts, heatmap gallery, failure notes
 params.yaml          every tunable value, validated at load time
+gates.yaml           the scores every model must keep (the quality gate)
 dvc.yaml             the pipeline, from raw images to a model and its reports per category
 ```
 
@@ -447,7 +722,9 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
   and secrets, and CI on every pull request. `main` is protected: changes arrive through up-to-date
   pull requests that pass `checks` (lint, types, tests), `docker` (the image builds, answers its
   smoke test and has no fixable high or critical vulnerability) and `pipeline` (the models still
-  pass the quality gate).
+  pass the quality gate). A deploy needs a human approval. See [CI/CD](#cicd).
+- **Careful with the supply chain.** Actions pinned to commit SHAs, least-privilege tokens,
+  Dependabot with a 7-day cooldown, and an image scan on every pull request.
 
 ## Roadmap
 
@@ -463,7 +740,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 5 | ONNX export, optimisation and quantisation | ✅ |
 | 6 | FastAPI inference service with pytest | ✅ |
 | 7 | Docker and a first deployment | ✅ |
-| 8 | CI/CD with GitHub Actions, including model quality gates | ⬜ |
+| 8 | CI/CD with GitHub Actions, including model quality gates | ✅ |
 | 9 | Retraining and batch inspection with Airflow | ⬜ |
 | 10 | Monitoring and the feedback loop | ⬜ |
 
