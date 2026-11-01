@@ -18,7 +18,7 @@ It runs on a free plan, so the first visit can take about a minute to wake it up
 > **Status: work in progress.** Data, models, metrics, experiment tracking, the DVC pipeline, the
 > ONNX export, the API, its Docker image (public on GHCR), a live demo, [CI/CD](#cicd) with
 > model quality gates, and [retraining and batch inspection with Airflow](#retraining-and-batch-inspection-with-airflow)
-> are done; tests for the DAGs in CI and monitoring come next. See the [roadmap](#roadmap).
+> are done; monitoring comes next. See the [roadmap](#roadmap).
 
 ## The idea
 
@@ -382,9 +382,9 @@ nothing: a release does, when I decide that `main` is worth shipping.
 
 ```mermaid
 flowchart LR
-  pr([Pull request]) --> ci["ci<br/>checks + docker"]
+  pr([Pull request]) --> ci["ci<br/>checks, docker, airflow-dags"]
   pr --> mci["model-ci<br/>pipeline + quality gate"]
-  ci --> merge{"merge to main<br/>3 required checks"}
+  ci --> merge{"merge to main<br/>4 required checks"}
   mci --> merge
   merge -.->|when I choose| release(["release v0.2.0"])
   release --> image["cd: image<br/>real model, smoke test,<br/>push 0.2.0 to GHCR"]
@@ -396,6 +396,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 326 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
+| [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
 | [`cd`](.github/workflows/cd.yml) | a published release (`v*`), or by hand on one | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
 
@@ -421,6 +422,9 @@ laptop it started 14 workers and ran out of memory.
 - The image must not import PyTorch and must run as user 10001, not root.
 - [Trivy](https://trivy.dev) fails the job on any HIGH or CRITICAL vulnerability that has a fix
   (`ignore-unfixed`: Debian lists many with no fix yet).
+
+**`airflow-dags`** runs [the DAG tests](#tests-for-the-dags) in Airflow's own image, where
+the DAGs run (`make test-dags`).
 
 **`pipeline`** checks the models, with the data and models from the DVC remote on
 [DagsHub](https://dagshub.com) (private, because of the MVTec license):
@@ -531,8 +535,8 @@ went live this way: `image` took 42 s and `deploy` 51 s, 40 s of it waiting for 
 
 ### `main` is protected
 
-- A pull request merges only when `checks`, `docker` and `pipeline` are green **and** its branch is
-  up to date with `main`, so the checks ran on exactly what will be merged. When `main` moved in
+- A pull request merges only when `checks`, `docker`, `airflow-dags` and `pipeline` are green
+  **and** its branch is up to date with `main`, so the checks ran on exactly what will be merged. When `main` moved in
   the meantime, `gh pr update-branch <number> --rebase` updates it and the checks run again.
 - Pull requests are squash-merged: one commit on `main` per change.
 
@@ -551,7 +555,7 @@ and the Dependabot secret.
 ### Dependabot
 
 [`dependabot.yml`](.github/dependabot.yml) opens pull requests every week for the GitHub Actions,
-the Python packages (`uv.lock`) and the Docker base images. They go through the same three checks
+the Python packages (`uv.lock`) and the Docker base images. They go through the same checks
 as any change.
 
 - **7-day cooldown:** a release is proposed only once it is a week old, so a hijacked release has
@@ -590,7 +594,7 @@ as any change.
 ### Using it day to day
 
 ```bash
-# Open a pull request and watch its three checks
+# Open a pull request and watch its checks
 gh pr create --fill --base main
 gh pr checks --watch
 
@@ -641,7 +645,7 @@ uvx --from actionlint-py actionlint
 4. **GHCR:** the package was first pushed from the laptop, so Actions could not push to it
    (`permission_denied: write_package`): *Package settings* → *Manage Actions access* → add the
    repository with the *Write* role.
-5. **Branch protection** on `main`: required checks `checks`, `docker`, `pipeline`, and
+5. **Branch protection** on `main`: required checks `checks`, `docker`, `airflow-dags`, `pipeline`, and
    *Require branches to be up to date before merging*.
 6. **Dependabot:** *Settings* → *Advanced Security* → enable *Dependabot alerts* and *Dependabot
    security updates*. Version updates start on their own once `dependabot.yml` is on `main`.
@@ -834,6 +838,28 @@ use them, and they took about 1.5 GB.
 
 The training containers get both as `private_environment`, which Airflow hides in the UI and logs.
 
+### Tests for the DAGs
+
+[`tests/airflow/test_dags.py`](tests/airflow/test_dags.py) runs in Airflow's own image, where the
+DAGs run. Airflow pins many libraries the project does not use, so it is not in the project's
+environment, and these tests skip there. `make test-dags` mounts the repository read-only into
+`apache/airflow:3.3.2`, installs pytest and runs them in about 10 seconds; CI's `airflow-dags` job
+runs the same command.
+
+| What | Checked |
+| --- | --- |
+| Both DAGs import | No import errors, and exactly these two DAGs |
+| Schedules | Weekly and every 10 minutes, no catch-up, one run at a time |
+| Retraining order | Each step before the next; `decide` leads to `open_pull_request` or `no_change`; `archive_incoming` after the pull request; `ingest` skips the rest with exit code 99 |
+| `decide` | Any new champion opens a pull request; none ends in `no_change` |
+| Secrets | Every training step gets the DagsHub token, hidden; only `open_pull_request` gets the GitHub token; no token in the visible environment; `incoming/` mounted read-only |
+| `list_new_images` | 23 photos make chunks of 10, 10 and 3; a photo still being copied (`.part`) waits |
+| `score_chunk` | Against a fake API: the photo goes to `/v1/predict`, the empty heatmap is dropped, and a 503 fails the task, so Airflow retries it |
+| `store_and_route` | Flagged to `review/`, passed to the archive, the line emptied. Run twice, like a retry: still one log file, with each photo once |
+
+They catch real mistakes: giving the GitHub token to the `retrain` step makes
+`test_only_open_pull_request_gets_the_github_token` fail.
+
 ### Using it day to day
 
 ```bash
@@ -901,6 +927,12 @@ make airflow-down
 - **Chunks of 10 photos, not 25**, so the usual 10-minute batch (about 20 photos) still splits.
 - **One Parquet file per run** in dated folders, rather than appending to one file: Parquet files
   cannot be appended to, and a retry overwrites its own file.
+- **The DAG tests**, because the plan's code fails on Airflow 3.3.2 in three ways:
+  `DagBag(include_examples=...)` no longer exists; `pip install --user` is refused, because the
+  image's Python is a virtualenv; and `pytest.importorskip("airflow")` succeeds without Airflow, by
+  finding this repository's `airflow/` folder, so the tests skip on `airflow.sdk` instead. The
+  project's pytest settings (coverage) and `tests/conftest.py` need its environment, so
+  `make test-dags` leaves them out.
 
 ## Quick start
 
@@ -925,6 +957,7 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
 | `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
 | `make smoke` | Smoke test of the running API: ready, a good part passes, a defective one is rejected |
+| `make test-dags` | The tests of the Airflow DAGs, in Airflow's own image (needs Docker) |
 | `make train-image` | Build the training image that the retraining DAG runs its steps in |
 | `make airflow-up` / `make airflow-down` | Start MLflow, the API and Airflow (http://localhost:8080), or stop Airflow ([setup](#retraining-and-batch-inspection-with-airflow)) |
 
@@ -988,8 +1021,8 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 - **Checked on every change.** Strict typing, lint, hooks that block large files, notebook outputs
   and secrets, and CI on every pull request. `main` is protected: changes arrive through up-to-date
   pull requests that pass `checks` (lint, types, tests), `docker` (the image builds, answers its
-  smoke test and has no fixable high or critical vulnerability) and `pipeline` (the models still
-  pass the quality gate). A deploy is a release, and needs a human approval. See [CI/CD](#cicd).
+  smoke test and has no fixable high or critical vulnerability), `airflow-dags` (the DAGs import
+  and work) and `pipeline` (the models still pass the quality gate). A deploy is a release, and needs a human approval. See [CI/CD](#cicd).
 - **Careful with the supply chain.** Actions pinned to commit SHAs, least-privilege tokens,
   Dependabot with a 7-day cooldown, and an image scan on every pull request.
 - **Automation proposes, people decide.** Airflow retrains only on photos people confirmed, never
@@ -1011,7 +1044,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 6 | FastAPI inference service with pytest | ✅ |
 | 7 | Docker and a first deployment | ✅ |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ✅ |
-| 9 | Retraining and batch inspection with Airflow (next: the DAG tests in CI) | 🚧 |
+| 9 | Retraining and batch inspection with Airflow, with DAG tests in CI | ✅ |
 | 10 | Monitoring and the feedback loop | ⬜ |
 
 ## Data and license

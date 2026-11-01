@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down airflow-up airflow-down train-image smoke
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down airflow-up airflow-down train-image smoke test-dags
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -19,6 +19,12 @@ bench:
 		done; \
 	done
 check: lint test
+# The DAG tests run in Airflow's own image, like the DAGs (CI's airflow-dags job runs this). The
+# project's pytest settings and tests/conftest.py need the project's environment: left out.
+test-dags:
+	docker run --rm -v "$(CURDIR):/repo:ro" -w /repo apache/airflow:3.3.2 bash -c \
+		"pip install --quiet --disable-pip-version-check pytest==9.1.1 && \
+		python -m pytest -p no:cacheprovider -o addopts= --confcutdir=tests/airflow tests/airflow"
 # Needs .env (cp .env.example .env). Stopping keeps the runs: they live in Docker volumes.
 mlflow-up:
 	docker compose --profile mlflow up -d --build
