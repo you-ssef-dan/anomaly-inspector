@@ -4,8 +4,11 @@
 # is checked out there, never a copy frozen in an old image. Airflow runs it this way in Phase 9:
 #   docker build -f docker/train.Dockerfile -t anomaly-inspector-train .
 #   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" anomaly-inspector-train dvc repro
+# uv as a stage of its own: Dependabot only updates images named on FROM lines.
+FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
+
 FROM python:3.12-slim-trixie
-COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 # git: DVC, and the run tags (git SHA, dirty flag), read the repository through it.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \

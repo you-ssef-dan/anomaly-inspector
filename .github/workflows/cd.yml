@@ -37,6 +37,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false  # no git push here: do not leave the token in .git
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - id: tag
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
@@ -45,11 +47,17 @@ jobs:
           uvx --from "dvc[s3]==3.67.1" dvc pull models/patchcore/bottle/model.onnx
           data/raw/mvtec_ad/bottle/test/good/001.png
           data/raw/mvtec_ad/bottle/test/broken_large/002.png
-      - run: >-
-          docker build -f docker/api.Dockerfile -t "$IMAGE:${{ steps.tag.outputs.tag }}"
-          --build-arg BUILD=${{ steps.tag.outputs.tag }}
-          --label org.opencontainers.image.revision=${{ github.sha }} .
-      - run: docker run -d -p 8000:8000 --name api "$IMAGE:${{ steps.tag.outputs.tag }}"
+      # Values reach the shell through env, never pasted into the command (template injection).
+      - name: Build the image
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: >-
+          docker build -f docker/api.Dockerfile -t "$IMAGE:$TAG" --build-arg BUILD="$TAG"
+          --label org.opencontainers.image.revision="$GITHUB_SHA" .
+      - name: Start the container
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: docker run -d -p 8000:8000 --name api "$IMAGE:$TAG"
       - run: scripts/smoke_test.sh  # the real model: a good bottle passes, a broken one is rejected
       - name: Container logs
         if: failure()
@@ -73,6 +81,8 @@ jobs:
       TAG: ${{ needs.image.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Deploy the image on Render
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}

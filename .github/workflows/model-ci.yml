@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0  # the diff compares with main
+          persist-credentials: false  # no git push here: do not leave the token in .git
       # HEAD is the pull request merged into main, so HEAD^1 is main: the diff is this PR.
       - name: Does this pull request change ML code, params, data or dependencies?
         id: changes
