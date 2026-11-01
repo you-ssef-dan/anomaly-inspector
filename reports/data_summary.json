@@ -1,7 +1,7 @@
 {
-  "images": 1007,
+  "images": 1027,
   "per_category": {
-    "bottle": 250,
+    "bottle": 270,
     "carpet": 341,
     "screw": 416
   },
@@ -10,7 +10,7 @@
       "broken_large": 20,
       "broken_small": 22,
       "contamination": 21,
-      "good": 187
+      "good": 207
     },
     "carpet": {
       "color": 19,
@@ -33,8 +33,8 @@
     "bottle": {
       "calib": 41,
       "holdout": 42,
-      "train": 150,
-      "val_normal": 17
+      "train": 168,
+      "val_normal": 19
     },
     "carpet": {
       "calib": 58,

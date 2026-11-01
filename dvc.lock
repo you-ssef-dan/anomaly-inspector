@@ -5,9 +5,9 @@ stages:
     deps:
     - path: data/raw/mvtec_ad
       hash: md5
-      md5: 833095ad5b79ed82cfa3de8c579a1ea9.dir
-      size: 940177204
-      nfiles: 1286
+      md5: d150e4c0a24d699529b4211e93e9d50e.dir
+      size: 950913392
+      nfiles: 1306
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -42,19 +42,19 @@ stages:
     outs:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: reports/data_summary.json
       hash: md5
-      md5: 968e572868ef195302e9fadbcebca016
+      md5: 4f37464d8d283e34def79a958778705f
       size: 924
   train_patchcore@bottle:
     cmd: python -m anomaly_inspector.pipelines.train_patchcore --category bottle
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -93,15 +93,15 @@ stages:
     outs:
     - path: models/patchcore/bottle/model.pt
       hash: md5
-      md5: 94bd4ecdc352b3f59ba18a5a7ad683f7
-      size: 109121571
+      md5: 25a3c3aaa18d6412d4b83177bacf09aa
+      size: 110252067
   train_patchcore@carpet:
     cmd: python -m anomaly_inspector.pipelines.train_patchcore --category carpet
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -147,8 +147,8 @@ stages:
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -195,8 +195,8 @@ stages:
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/bottle/ground_truth
       hash: md5
       md5: ed9f7d18a4129fd2b9f9fbb921a9773a.dir
@@ -204,8 +204,8 @@ stages:
       nfiles: 63
     - path: models/patchcore/bottle/model.pt
       hash: md5
-      md5: 94bd4ecdc352b3f59ba18a5a7ad683f7
-      size: 109121571
+      md5: 25a3c3aaa18d6412d4b83177bacf09aa
+      size: 110252067
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -252,21 +252,21 @@ stages:
     outs:
     - path: models/patchcore/bottle/threshold.json
       hash: md5
-      md5: d8fd97a2d2b5bfe121a1637f457f651d
-      size: 235
+      md5: 81898c79e4a235e06e1fb79c3329f9f0
+      size: 234
     - path: reports/patchcore/bottle/figures
       hash: md5
-      md5: 670487bc2e4c84e561b9eb9c5f2989a5.dir
-      size: 200417
+      md5: a22c4fd5c0b769b23715fd234c8a2861.dir
+      size: 201191
       nfiles: 4
     - path: reports/patchcore/bottle/metrics.json
       hash: md5
-      md5: e93fe2f269b714b56b6f7a9aa77ba40c
-      size: 161
+      md5: 65c50e8984b404d243c5f0446e094e6a
+      size: 163
     - path: reports/patchcore/bottle/pro.csv
       hash: md5
-      md5: 5964ed8100bad9cfcbc0c653c27d02a1
-      size: 8785
+      md5: 9c39dcbca6517d7c40cf47c4ab7dec06
+      size: 9193
     - path: reports/patchcore/bottle/roc.csv
       hash: md5
       md5: 059c30702177228ca06afb9873cfcef3
@@ -277,8 +277,8 @@ stages:
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/carpet/ground_truth
       hash: md5
       md5: 72425c80d4de400e62689a89170b2ed5.dir
@@ -338,13 +338,13 @@ stages:
       size: 235
     - path: reports/patchcore/carpet/figures
       hash: md5
-      md5: 831e90c4be13492e1458d5a54da5aeef.dir
-      size: 309753
+      md5: 06a128602fced83fe2c6a5292869fb60.dir
+      size: 309817
       nfiles: 4
     - path: reports/patchcore/carpet/metrics.json
       hash: md5
-      md5: 3c4fd8f76251e5c46075fee3acf6cc1a
-      size: 177
+      md5: 28c98f67e99c6c6d63382d3da0194b2b
+      size: 176
     - path: reports/patchcore/carpet/pro.csv
       hash: md5
       md5: 37e1a791129ac5407bec3baf8c3d826c
@@ -359,8 +359,8 @@ stages:
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/screw/ground_truth
       hash: md5
       md5: 4d76f59c45a42b73612892619b37f330.dir
@@ -420,13 +420,13 @@ stages:
       size: 235
     - path: reports/patchcore/screw/figures
       hash: md5
-      md5: fd70513dba9c1b56bc3820a77a466243.dir
-      size: 189680
+      md5: 4df95fd551754939cd2f1146f1d76ed4.dir
+      size: 189741
       nfiles: 4
     - path: reports/patchcore/screw/metrics.json
       hash: md5
-      md5: 86b5148bbcf529d044c3e7d6677e7c0c
-      size: 178
+      md5: 98e2e277652769dae363c5e0868d3376
+      size: 177
     - path: reports/patchcore/screw/pro.csv
       hash: md5
       md5: 791ccbddc46d61641aab0c58c190fa33
@@ -441,8 +441,8 @@ stages:
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/bottle/ground_truth
       hash: md5
       md5: ed9f7d18a4129fd2b9f9fbb921a9773a.dir
@@ -450,16 +450,16 @@ stages:
       nfiles: 63
     - path: models/patchcore/bottle/model.pt
       hash: md5
-      md5: 94bd4ecdc352b3f59ba18a5a7ad683f7
-      size: 109121571
+      md5: 25a3c3aaa18d6412d4b83177bacf09aa
+      size: 110252067
     - path: models/patchcore/bottle/threshold.json
       hash: md5
-      md5: d8fd97a2d2b5bfe121a1637f457f651d
-      size: 235
+      md5: 81898c79e4a235e06e1fb79c3329f9f0
+      size: 234
     - path: reports/patchcore/bottle/metrics.json
       hash: md5
-      md5: e93fe2f269b714b56b6f7a9aa77ba40c
-      size: 161
+      md5: 65c50e8984b404d243c5f0446e094e6a
+      size: 163
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -507,20 +507,20 @@ stages:
     outs:
     - path: models/patchcore/bottle/model.onnx
       hash: md5
-      md5: 278d44e8f5d9020fdaa8c4098a3a18f8
-      size: 108971184
+      md5: 060786be023feab31ca859d57889db4f
+      size: 110101679
     - path: reports/patchcore/bottle/export.json
       hash: md5
-      md5: bc3dcd746903253e94e8ff0b75d69a9e
-      size: 201
+      md5: e803a0b42ccc39e550957dcb46bea25e
+      size: 202
   export_patchcore@carpet:
     cmd: python -m anomaly_inspector.pipelines.export_patchcore --category 
       carpet
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/carpet/ground_truth
       hash: md5
       md5: 72425c80d4de400e62689a89170b2ed5.dir
@@ -536,8 +536,8 @@ stages:
       size: 235
     - path: reports/patchcore/carpet/metrics.json
       hash: md5
-      md5: 3c4fd8f76251e5c46075fee3acf6cc1a
-      size: 177
+      md5: 28c98f67e99c6c6d63382d3da0194b2b
+      size: 176
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -585,19 +585,19 @@ stages:
     outs:
     - path: models/patchcore/carpet/model.onnx
       hash: md5
-      md5: d468bd2c6c818b06d7adf796944dd8eb
+      md5: 52ad82cf79e456b61b59c9b4996c98ab
       size: 112178352
     - path: reports/patchcore/carpet/export.json
       hash: md5
-      md5: 984380d1405e6ec7b425ce0daf66acbe
-      size: 230
+      md5: 8e05a25dad2eddc404cd3095dd898fb6
+      size: 231
   export_patchcore@screw:
     cmd: python -m anomaly_inspector.pipelines.export_patchcore --category screw
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/screw/ground_truth
       hash: md5
       md5: 4d76f59c45a42b73612892619b37f330.dir
@@ -613,8 +613,8 @@ stages:
       size: 235
     - path: reports/patchcore/screw/metrics.json
       hash: md5
-      md5: 86b5148bbcf529d044c3e7d6677e7c0c
-      size: 178
+      md5: 98e2e277652769dae363c5e0868d3376
+      size: 177
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -662,20 +662,20 @@ stages:
     outs:
     - path: models/patchcore/screw/model.onnx
       hash: md5
-      md5: b084bc623d94879d694332369759a0e8
+      md5: 54d5926bb62893ccea724794aaa4c4b1
       size: 114003119
     - path: reports/patchcore/screw/export.json
       hash: md5
-      md5: 3efaa6e995b48001a431ff9db9b2d5a2
-      size: 233
+      md5: fce2bc0add70283158526f6b1931d82a
+      size: 231
   optimize_patchcore@bottle:
     cmd: python -m anomaly_inspector.pipelines.optimize_patchcore --category 
       bottle
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/bottle/ground_truth
       hash: md5
       md5: ed9f7d18a4129fd2b9f9fbb921a9773a.dir
@@ -683,16 +683,16 @@ stages:
       nfiles: 63
     - path: models/patchcore/bottle/model.onnx
       hash: md5
-      md5: 278d44e8f5d9020fdaa8c4098a3a18f8
-      size: 108971184
+      md5: 060786be023feab31ca859d57889db4f
+      size: 110101679
     - path: models/patchcore/bottle/model.pt
       hash: md5
-      md5: 94bd4ecdc352b3f59ba18a5a7ad683f7
-      size: 109121571
+      md5: 25a3c3aaa18d6412d4b83177bacf09aa
+      size: 110252067
     - path: reports/patchcore/bottle/export.json
       hash: md5
-      md5: bc3dcd746903253e94e8ff0b75d69a9e
-      size: 201
+      md5: e803a0b42ccc39e550957dcb46bea25e
+      size: 202
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -749,20 +749,20 @@ stages:
     outs:
     - path: models/patchcore/bottle/model.int8.onnx
       hash: md5
-      md5: 3ec531ff1dac91fac97edf2af9424cb3
-      size: 34701358
+      md5: 55110cff055af05835142c580a6bbdee
+      size: 35832589
     - path: reports/patchcore/bottle/benchmark.json
       hash: md5
-      md5: 378f2273e8adb68f173d79c0f9d4af97
-      size: 672
+      md5: 48aa2015247ce5cb863b03b70d330313
+      size: 675
   optimize_patchcore@carpet:
     cmd: python -m anomaly_inspector.pipelines.optimize_patchcore --category 
       carpet
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/carpet/ground_truth
       hash: md5
       md5: 72425c80d4de400e62689a89170b2ed5.dir
@@ -770,7 +770,7 @@ stages:
       nfiles: 89
     - path: models/patchcore/carpet/model.onnx
       hash: md5
-      md5: d468bd2c6c818b06d7adf796944dd8eb
+      md5: 52ad82cf79e456b61b59c9b4996c98ab
       size: 112178352
     - path: models/patchcore/carpet/model.pt
       hash: md5
@@ -778,8 +778,8 @@ stages:
       size: 112328739
     - path: reports/patchcore/carpet/export.json
       hash: md5
-      md5: 984380d1405e6ec7b425ce0daf66acbe
-      size: 230
+      md5: 8e05a25dad2eddc404cd3095dd898fb6
+      size: 231
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -836,20 +836,20 @@ stages:
     outs:
     - path: models/patchcore/carpet/model.int8.onnx
       hash: md5
-      md5: 30ac5edeb8b31fc54fb937a043bf2c88
+      md5: 3c5840e5375223a3cf38f7090f4de471
       size: 37910627
     - path: reports/patchcore/carpet/benchmark.json
       hash: md5
-      md5: 7ae0f35f8e90e2559d6e2c82d0c66b78
-      size: 719
+      md5: e30a8fab0275fdafe992d021a2ed8d28
+      size: 720
   optimize_patchcore@screw:
     cmd: python -m anomaly_inspector.pipelines.optimize_patchcore --category 
       screw
     deps:
     - path: data/processed/manifest.parquet
       hash: md5
-      md5: 9b6ab4999e1f04ef99132d487a0ca50c
-      size: 57469
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
     - path: data/raw/mvtec_ad/screw/ground_truth
       hash: md5
       md5: 4d76f59c45a42b73612892619b37f330.dir
@@ -857,7 +857,7 @@ stages:
       nfiles: 119
     - path: models/patchcore/screw/model.onnx
       hash: md5
-      md5: b084bc623d94879d694332369759a0e8
+      md5: 54d5926bb62893ccea724794aaa4c4b1
       size: 114003119
     - path: models/patchcore/screw/model.pt
       hash: md5
@@ -865,8 +865,8 @@ stages:
       size: 114153507
     - path: reports/patchcore/screw/export.json
       hash: md5
-      md5: 3efaa6e995b48001a431ff9db9b2d5a2
-      size: 233
+      md5: fce2bc0add70283158526f6b1931d82a
+      size: 231
     - path: src/anomaly_inspector/config.py
       hash: md5
       md5: 87285203a28a60af5e1c4efa80c56532
@@ -923,9 +923,9 @@ stages:
     outs:
     - path: models/patchcore/screw/model.int8.onnx
       hash: md5
-      md5: 241da03df8a87051b72fdb997beeddf1
+      md5: bc00fe80ede0c70f315dae15c7f3e010
       size: 39736571
     - path: reports/patchcore/screw/benchmark.json
       hash: md5
-      md5: ddb295fb085e7492f46524aff2f66429
-      size: 719
+      md5: 0c313635284c8a5a8909bf2754b499ce
+      size: 716
