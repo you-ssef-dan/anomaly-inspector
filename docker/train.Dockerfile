@@ -5,7 +5,7 @@
 #   docker build -f docker/train.Dockerfile -t anomaly-inspector-train .
 #   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" anomaly-inspector-train dvc repro
 # uv as a stage of its own: Dependabot only updates images named on FROM lines.
-FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
 
 FROM python:3.12-slim-trixie
 COPY --from=uv /uv /bin/uv
