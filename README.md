@@ -394,7 +394,7 @@ flowchart LR
 
 | Workflow | Runs on | What it does | Time |
 | --- | --- | --- | --- |
-| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 326 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 342 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
@@ -676,17 +676,17 @@ deploys: a new champion becomes a pull request, CI checks it, I merge it, and a 
 
 ```mermaid
 flowchart LR
+  people([people]) -->|confirm good parts| inc["incoming/category/good/"]
+  inc --> rt["retrain_patchcore<br/>weekly"]
+  rt -->|no better| none(["no_change"])
+  rt -->|new champion| pr(["pull request,<br/>checked by CI"])
+  pr -.->|I merge, then release| live(["live"])
   line([factory line]) -->|photos| li["line/incoming/"]
   li --> bi["batch_inspection<br/>every 10 min"]
   bi <-->|HTTP| api["inspection API"]
   bi -->|flagged| review["review/<br/>for a person"]
   bi -->|passed| arch["archive/line/"]
   bi --> log[("inspection log<br/>Parquet")]
-  people([people]) -->|confirm good parts| inc["incoming/category/good/"]
-  inc --> rt["retrain_patchcore<br/>weekly"]
-  rt -->|new champion| pr(["pull request"])
-  rt -->|no better| none(["no_change"])
-  pr --> ci["CI + quality gate"] --> merge{"merge"} -.->|when I choose| release(["release, then live"])
 ```
 
 ### Retraining: `retrain_patchcore`
@@ -884,7 +884,8 @@ docker compose exec airflow-scheduler airflow dags unpause batch_inspection
 cd ..
 
 # Read the inspection log
-uv run python -c "import os, pandas as pd; print(pd.read_parquet(os.path.expanduser('~/airflow-workspace/inspection_log')))"
+log=~/airflow-workspace/inspection_log
+uv run python -c "import sys, pandas as pd; print(pd.read_parquet(sys.argv[1]))" "$log"
 
 make airflow-down
 ```
