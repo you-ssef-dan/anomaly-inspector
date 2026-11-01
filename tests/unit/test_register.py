@@ -39,6 +39,12 @@ def evaluated(fake_project: Path, monkeypatch: pytest.MonkeyPatch, script: Modul
     monkeypatch.setattr(script, "stale_stages", lambda target: [])
     for stage in (train_patchcore, evaluate_patchcore, export_patchcore):
         stage.main(["--category", "bottle"])
+    # Promotion also judges speed, and a busy CI runner once took 245 ms per fake image, over the
+    # 200 ms budget. These tests are about registering, so the budget is out of the way. Changed
+    # after the stages: the evaluation run must come from a clean git tree to be promotable.
+    params = yaml.safe_load(Path("params.yaml").read_text())
+    params["promotion"] = {"latency_budget_ms": 60_000}
+    Path("params.yaml").write_text(yaml.safe_dump(params))
     return fake_project
 
 

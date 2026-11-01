@@ -34,7 +34,7 @@ winners = [c for c, won in promoted.items() if won]
 others = [c for c, won in promoted.items() if not won] or ["none"]
 body = f"""Opened by the `retrain_patchcore` Airflow DAG.
 
-- Data: {data_commit}
+- New data: {data_commit.removeprefix("data: ")}
 - New champion in MLflow: {", ".join(winners)}
 - Retrained, still challenger only: {", ".join(others)}
 
