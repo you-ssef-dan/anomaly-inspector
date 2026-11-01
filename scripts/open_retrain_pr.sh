@@ -13,7 +13,8 @@ promoted=${1:?the register step result, like {\"bottle\": true\}}
 branch=$(git branch --show-current)
 
 git add dvc.lock reports
-git commit --quiet -m "retrain: models trained on the new confirmed photos"
+# A retry finds this commit already made: every step below is safe to run twice.
+git diff --cached --quiet || git commit --quiet -m "retrain: models trained on the new confirmed photos"
 dvc push --quiet
 # The token reaches git through a credential helper, never in a URL or an argument logs could show.
 # shellcheck disable=SC2016  # $GH_TOKEN is expanded by the helper's shell, on purpose
