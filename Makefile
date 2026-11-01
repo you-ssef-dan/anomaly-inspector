@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down smoke
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down airflow-up airflow-down train-image smoke
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -29,6 +29,17 @@ api-up:
 	docker compose --profile api up -d --build api
 api-down:
 	docker compose --profile api rm --stop --force api
+# Airflow, after MLflow and the API: they create the `inspection` network it joins.
+# Needs airflow/.env (cp airflow/.env.example airflow/.env, then fill it). UI: http://localhost:8080
+# The DagsHub token comes from .dvc/config.local, its only copy on this laptop.
+airflow-up: mlflow-up api-up
+	token="$$(uv run dvc config --local remote.dagshub.secret_access_key)" && \
+		cd airflow && DAGSHUB_TOKEN="$$token" docker compose up -d
+airflow-down:
+	cd airflow && docker compose down
+# The image Airflow trains in. Rebuild it when uv.lock changes: the DAG refuses a stale one.
+train-image:
+	docker build -f docker/train.Dockerfile -t anomaly-inspector-train .
 # Against the running API: ready, a good bottle passes, a broken one is rejected.
 smoke:
 	scripts/smoke_test.sh

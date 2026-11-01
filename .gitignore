@@ -227,3 +227,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Airflow (Phase 9): its logs, its secrets (.env) and the airflow.cfg it generates
+airflow/logs/
+airflow/.env
+airflow/config/
