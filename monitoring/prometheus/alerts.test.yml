@@ -1,0 +1,62 @@
+# Unit tests of alerts.yml: made-up series in, expected alerts out. Run: make test-alerts
+# A series "0+9x60" starts at 0 and grows by 9 per interval, 60 times.
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+
+tests:
+  - name: the share flagged goes from 10% to 30%, and the alert fires once it has lasted
+    interval: 1m
+    input_series:
+      - series: 'inspection_decisions_total{job="api",category="bottle",result="ok"}'
+        values: "0+9x60 547+7x59"
+      - series: 'inspection_decisions_total{job="api",category="bottle",result="defect"}'
+        values: "0+1x60 63+3x59"
+    alert_rule_test:
+      - eval_time: 60m  # 10%: normal
+        alertname: FlaggedRateHigh
+        exp_alerts: []
+      - eval_time: 75m  # the 30-minute share is only now crossing 20%
+        alertname: FlaggedRateHigh
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: FlaggedRateHigh
+        exp_alerts:
+          - exp_labels: {category: bottle}
+            exp_annotations:
+              summary: "bottle: 30% of photos flagged over 30 minutes"
+              description: "About 10% is normal. Look at the score heatmap, then at the light and the camera."
+
+  - name: a few photos, all of them defects, are not enough
+    interval: 5m
+    input_series:
+      - series: 'inspection_decisions_total{job="api",category="bottle",result="defect"}'
+        values: "0+1x24"  # one photo every 5 minutes, about 6 in 30 minutes
+    alert_rule_test:
+      - eval_time: 120m
+        alertname: FlaggedRateHigh
+        exp_alerts: []
+
+  - name: /v1/predict goes from under 0.5 s to over 1 s, and the alert fires after 10 minutes
+    interval: 1m
+    input_series:  # 10 requests a minute; the buckets count the requests at or under `le` seconds
+      - series: 'http_request_duration_seconds_bucket{job="api",handler="/v1/predict",le="0.5"}'
+        values: "0+10x60 600+0x59"
+      - series: 'http_request_duration_seconds_bucket{job="api",handler="/v1/predict",le="1.0"}'
+        values: "0+10x60 600+0x59"
+      - series: 'http_request_duration_seconds_bucket{job="api",handler="/v1/predict",le="1.5"}'
+        values: "0+10x120"
+      - series: 'http_request_duration_seconds_bucket{job="api",handler="/v1/predict",le="+Inf"}'
+        values: "0+10x120"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PredictLatencyHigh
+        exp_alerts: []
+      - eval_time: 70m  # slow for 10 minutes, but above 1 s for less than 10
+        alertname: PredictLatencyHigh
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: PredictLatencyHigh
+        exp_alerts:
+          - exp_annotations:
+              summary: "p95 latency of /v1/predict: 1.475s"
+              description: "Normally 0.2 to 0.5 s. Check the API's CPU and memory, and the model version."

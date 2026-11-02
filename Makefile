@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down monitoring-up monitoring-down airflow-up airflow-down train-image smoke test-dags
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down monitoring-up monitoring-down test-alerts airflow-up airflow-down train-image smoke test-dags
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -38,11 +38,19 @@ api-up:
 api-down:
 	docker compose --profile api rm --stop --force api
 # Prometheus (http://localhost:9090) and Grafana (http://localhost:3000), with the API they watch.
-# Stopping keeps Prometheus's history: it lives in a Docker volume.
+# Stopping keeps Prometheus's history: it lives in a Docker volume. Both are re-created each time,
+# so they read monitoring/ again: after a change there, run this. A running container also keeps
+# seeing the old folder when git deletes and re-creates it (switching to a branch without it).
 monitoring-up: api-up
-	docker compose --profile monitoring up -d
+	docker compose --profile monitoring up -d --force-recreate
 monitoring-down:
 	docker compose --profile monitoring rm --stop --force prometheus grafana
+# Prometheus's own checker on its config and alert rules, then the rules' tests (CI's alert-rules
+# job runs this). The image is the one in docker-compose.yml.
+test-alerts:
+	docker run --rm -v "$(CURDIR)/monitoring/prometheus:/etc/prometheus:ro" -w /etc/prometheus \
+		--entrypoint sh prom/prometheus:v3.15.1 -c \
+		"promtool check config prometheus.yml && promtool test rules alerts.test.yml"
 # Airflow, after MLflow and the API: they create the `inspection` network it joins.
 # Needs airflow/.env (cp airflow/.env.example airflow/.env, then fill it). UI: http://localhost:8080
 # The DagsHub token comes from .dvc/config.local, its only copy on this laptop.
