@@ -1,40 +1,53 @@
-"""Compare our PatchCore with anomalib's on identical inputs, scored by our own metrics.
+"""Compare our PatchCore and our STFPM with anomalib's PatchCore, on identical inputs and metrics.
 
-Both get the same preprocessed tensors, the same training images (split "train"), the same
-test images (calib + holdout), the same coreset ratio and the same metric code, so a difference
-in the numbers comes from the model code alone.
+All get the same preprocessed tensors, the same training images (split "train"), the same test
+images (calib + holdout) and the same metric code, so a difference in the numbers comes from the
+model alone. The two PatchCores also share the coreset ratio and the backbone's weights.
 
 anomalib needs the optional `bench` extra: `uv sync --all-extras`. Implementations:
 
-  ours             this repo's PatchCore
+  ours             this repo's PatchCore (WideResNet-50)
   anomalib-v1      anomalib's PatchCore with the torchvision V1 weights loaded into its backbone
                    (the weights of the paper and of ours: the algorithm is the only difference)
   anomalib-default anomalib's PatchCore as shipped; its timm backbone uses `racm_in1k` weights
+  stfpm            this repo's STFPM (ResNet-18), trained with the stfpm section of params.yaml:
+                   early stopping on split "val_normal", seeded, so a rerun gives the same numbers
 
 Run one (category, implementation) per process so the memory of the feature bank is released:
 
   uv run python scripts/benchmark_anomalib.py --category bottle --impl ours
   uv run python scripts/benchmark_anomalib.py --category bottle --impl anomalib-v1
+  uv run --env-file .env python scripts/benchmark_anomalib.py --category bottle --impl stfpm
+
+With a tracking server (`--env-file .env`), an STFPM run is logged to MLflow, experiment "stfpm":
+its settings, the losses of every epoch, and the scores.
 """
 
 import argparse
+import contextlib
 import json
 import resource
+import tempfile
 import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import mlflow
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
+from anomaly_inspector.config import StfpmConfig, load_params
 from anomaly_inspector.data.dataset import ManifestDataset
 from anomaly_inspector.evaluation.evaluate import Predictions, evaluate, load_masks, predict
 from anomaly_inspector.models.backbones import build_backbone
 from anomaly_inspector.models.patchcore import PatchCore
+from anomaly_inspector.models.stfpm import STFPM
+from anomaly_inspector.tracking import start_run, tracking_enabled
+from anomaly_inspector.training.stfpm import TrainResult, stack_images, train_stfpm
 
-IMPLS = ("ours", "anomalib-v1", "anomalib-default")
+IMPLS = ("ours", "anomalib-v1", "anomalib-default", "stfpm")
 LAYERS = ("layer2", "layer3")
 ANOMALIB_DEFAULT_NEIGHBORS = 9  # anomalib re-weights the image score over this many neighbours
 
@@ -99,6 +112,33 @@ def run_anomalib(
     return predict(AnomalibAsTuple(model), test), fit_seconds
 
 
+def run_stfpm(
+    backbone_name: str,
+    pretrained: bool,
+    train: ManifestDataset,
+    val: ManifestDataset,
+    test: DataLoader[Any],
+    config: StfpmConfig,
+) -> tuple[Predictions, float, TrainResult]:
+    torch.manual_seed(config.seed)  # the student's random starting weights
+    model = STFPM.from_backbone(backbone_name, pretrained=pretrained)
+    start = time.perf_counter()
+    train_images, val_images = stack_images(train), stack_images(val)
+
+    def log_epoch(epoch: int, metrics: dict[str, float]) -> None:
+        print(f"epoch {epoch}: " + ", ".join(f"{k} {v:.4f}" for k, v in metrics.items()))
+        if tracking_enabled():
+            losses = {"train_loss": metrics["train_loss"], "val_loss": metrics["val_loss"]}
+            mlflow.log_metrics(losses | {"epoch_seconds": metrics["seconds"]}, step=epoch)
+
+    with tempfile.TemporaryDirectory() as folder:  # the best student only lives until it is scored
+        trained = train_stfpm(
+            model, train_images, val_images, config, Path(folder) / "student.pt", log_epoch
+        )
+    fit_seconds = time.perf_counter() - start
+    return predict(model.predict, test), fit_seconds, trained
+
+
 def load_weights_and_check(anomalib_model: Any, source: torch.nn.Module) -> None:
     """Put our backbone's weights into anomalib's timm backbone and prove the features match."""
     extractor = anomalib_model.feature_extractor
@@ -121,7 +161,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     parser.add_argument("--category", required=True)
     parser.add_argument("--impl", choices=IMPLS, required=True)
-    parser.add_argument("--coreset-ratio", type=float, default=0.01)
+    parser.add_argument("--coreset-ratio", type=float, default=0.01, help="PatchCore only")
     parser.add_argument(
         "--num-neighbors",
         type=int,
@@ -129,62 +169,115 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="anomalib only; 1 gives the plain maximum patch distance, like ours",
     )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--backbone", default="wide_resnet50_2")
+    parser.add_argument(
+        "--backbone", help="default: wide_resnet50_2 for PatchCore, resnet18 for STFPM (papers)"
+    )
     parser.add_argument(
         "--no-pretrained", action="store_true", help="random weights, for smoke tests"
     )
     parser.add_argument("--size", type=int, default=256)
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=8, help="for extracting and scoring")
+    parser.add_argument("--epochs", type=int, help="STFPM only; default: the one in params.yaml")
+    parser.add_argument("--params", type=Path, default=Path("params.yaml"), help="STFPM only")
     parser.add_argument("--manifest", type=Path, default=Path("data/processed/manifest.parquet"))
     parser.add_argument("--out", type=Path, default=Path("reports/anomalib_benchmark.json"))
     args = parser.parse_args(argv)
 
+    stfpm = args.impl == "stfpm"
+    backbone = args.backbone or ("resnet18" if stfpm else "wide_resnet50_2")
     manifest = pd.read_parquet(args.manifest)
     rows = manifest[manifest["category"] == args.category]
     train_rows = rows[rows["split"] == "train"]
     test_rows = rows[rows["split"].isin(["calib", "holdout"])]  # the full test set
-    train = DataLoader(ManifestDataset(train_rows, args.size), batch_size=args.batch_size)
     test = DataLoader(ManifestDataset(test_rows, args.size), batch_size=args.batch_size)
     pretrained = not args.no_pretrained
-    source = build_backbone(args.backbone, pretrained=pretrained)
-
-    if args.impl == "ours":
-        predictions, fit_seconds = run_ours(source, train, test, args.coreset_ratio, args.seed)
-    else:
-        predictions, fit_seconds = run_anomalib(
-            args.impl,
-            args.backbone,
-            source,
-            train,
-            test,
-            args.coreset_ratio,
-            args.seed,
-            args.num_neighbors,
-            pretrained,
-        )
-
-    masks = load_masks(test_rows, args.size)
-    result = {
-        "category": args.category,
-        "impl": args.impl,
-        **evaluate(test_rows["label"], predictions, masks),
-        "fit_seconds": fit_seconds,
-        "ms_per_image": predictions.ms_per_image,  # time in the model only, not image decoding
-        "peak_ram_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
-        "train_images": len(train_rows),
-        "test_images": len(test_rows),
-        "settings": {
-            "coreset_ratio": args.coreset_ratio,
-            "seed": args.seed,
-            "backbone": args.backbone,
-            "pretrained": pretrained,
-            "image_size": args.size,
-            "torch": torch.__version__,
-            "num_neighbors": args.num_neighbors if args.impl != "ours" else None,
-        },
+    settings: dict[str, Any] = {
+        "seed": args.seed,
+        "backbone": backbone,
+        "pretrained": pretrained,
+        "image_size": args.size,
+        "torch": torch.__version__,
     }
+    extra: dict[str, Any] = {}
+    with contextlib.ExitStack() as tracking:
+        if stfpm:
+            params = load_params(args.params)
+            changes: dict[str, Any] = {"seed": args.seed}
+            if args.epochs is not None:
+                changes["epochs"] = args.epochs
+            params = params.model_copy(update={"stfpm": params.stfpm.model_copy(update=changes)})
+            val_rows = rows[rows["split"] == "val_normal"]
+            if tracking_enabled():  # open until the scores are logged; FAILED if anything raises
+                run = tracking.enter_context(
+                    start_run("stfpm", f"stfpm-{args.category}", args.category, params)
+                )
+            predictions, fit_seconds, trained = run_stfpm(
+                backbone,
+                pretrained,
+                ManifestDataset(train_rows, args.size),
+                ManifestDataset(val_rows, args.size),
+                test,
+                params.stfpm,
+            )
+            settings["stfpm"] = params.stfpm.model_dump()
+            extra = {
+                "val_images": len(val_rows),
+                "best_epoch": trained.best_epoch,
+                "epochs_run": trained.epochs_run,
+                "best_val_loss": trained.best_val_loss,
+            }
+        else:
+            source = build_backbone(backbone, pretrained=pretrained)
+            train = DataLoader(ManifestDataset(train_rows, args.size), batch_size=args.batch_size)
+            if args.impl == "ours":
+                predictions, fit_seconds = run_ours(
+                    source, train, test, args.coreset_ratio, args.seed
+                )
+            else:
+                predictions, fit_seconds = run_anomalib(
+                    args.impl,
+                    backbone,
+                    source,
+                    train,
+                    test,
+                    args.coreset_ratio,
+                    args.seed,
+                    args.num_neighbors,
+                    pretrained,
+                )
+            settings["coreset_ratio"] = args.coreset_ratio
+            settings["num_neighbors"] = args.num_neighbors if args.impl != "ours" else None
+
+        masks = load_masks(test_rows, args.size)
+        scores = evaluate(test_rows["label"], predictions, masks)
+        result = {
+            "category": args.category,
+            "impl": args.impl,
+            **scores,
+            "fit_seconds": fit_seconds,
+            "ms_per_image": predictions.ms_per_image,  # time in the model only, not image decoding
+            "peak_ram_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+            "train_images": len(train_rows),
+            "test_images": len(test_rows),
+            **extra,
+            "settings": settings,
+        }
+        if stfpm and tracking_enabled():
+            mlflow.set_tag("evaluated_on", "calib + holdout")
+            mlflow.log_metrics({f"test_{name}": value for name, value in scores.items()})
+            mlflow.log_metrics(
+                {
+                    "fit_seconds": fit_seconds,
+                    "ms_per_image": predictions.ms_per_image,
+                    "best_epoch": trained.best_epoch,
+                    "epochs_run": trained.epochs_run,
+                    "best_val_loss": trained.best_val_loss,
+                }
+            )
+            print(f"MLflow run {run.info.run_id}, experiment stfpm")
+
     key = f"{args.category}/{args.impl}"
-    if args.impl != "ours":
+    if args.impl.startswith("anomalib"):
         key += f"-k{args.num_neighbors}"
     results = json.loads(args.out.read_text()) if args.out.exists() else {}
     results[key] = result
