@@ -49,6 +49,33 @@ services:
       resources:
         limits: {cpus: "2", memory: 1g}
 
+  # Monitoring: Prometheus reads the API's /metrics every 15 s and keeps the history, Grafana
+  # draws it. Both are set up from monitoring/, so a fresh clone gets the same dashboards.
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    profiles: [monitoring]
+    ports: ["127.0.0.1:9090:9090"]
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - promdata:/prometheus  # the history survives a restart
+
+  grafana:
+    image: grafana/grafana:13.2.5
+    profiles: [monitoring]
+    ports: ["127.0.0.1:3000:3000"]
+    # No volume of its own: the data source and the dashboards are read from monitoring/grafana
+    # at each start, and what they show lives in Prometheus. Only the folders we fill are mounted:
+    # hiding the image's other (empty) provisioning folders makes Grafana log errors.
+    volumes:
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      # Only this machine can open it: viewing needs no login, editing needs the admin one.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/anomaly-inspector.json
+
 networks:
   default:
     name: inspection  # Airflow joins this network in Phase 9
@@ -56,3 +83,4 @@ networks:
 volumes:
   pgdata:
   mlartifacts:
+  promdata:

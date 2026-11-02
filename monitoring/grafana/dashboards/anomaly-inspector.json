@@ -1,0 +1,106 @@
+{
+  "uid": "anomaly-inspector",
+  "title": "Anomaly Inspector",
+  "description": "The inspection API as Prometheus sees it: traffic and the model's decisions.",
+  "tags": ["anomaly-inspector"],
+  "schemaVersion": 42,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "API up",
+      "description": "Whether Prometheus's last read of the API's /metrics worked.",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "up{job=\"api\"}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {"0": {"text": "DOWN", "index": 0}, "1": {"text": "UP", "index": 1}}
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Requests per second, by endpoint",
+      "description": "Health checks and /metrics itself are not counted.",
+      "gridPos": {"x": 4, "y": 0, "w": 10, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"api\"}[$__rate_interval]))",
+          "legendFormat": "{{handler}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}, "overrides": []},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Photos per minute, by decision",
+      "description": "One decision per photo, from /v1/predict and /v1/predict/batch.",
+      "gridPos": {"x": 14, "y": 0, "w": 10, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (result) (rate(inspection_decisions_total{job=\"api\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"min": 0, "custom": {"axisLabel": "photos per minute"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "defect"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "ok"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# Grafana loads every dashboard JSON in this folder and re-reads a file within 10 s of a change.
+# The UI cannot save over them: edit the JSON (or paste the UI's "Export as JSON" here), so the
+# repository stays the only source.
+apiVersion: 1
+providers:
+  - name: anomaly-inspector
+    type: file
+    allowUiUpdates: false
+    disableDeletion: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

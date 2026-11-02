@@ -1000,6 +1000,7 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
 | `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
 | `make smoke` | Smoke test of the running API: ready, a good part passes, a defective one is rejected |
+| `make monitoring-up` / `make monitoring-down` | Start the API with Prometheus (http://localhost:9090) and Grafana (http://localhost:3000, no login to view), or stop the two |
 | `make test-dags` | The tests of the Airflow DAGs, in Airflow's own image (needs Docker) |
 | `make train-image` | Build the training image that the retraining DAG runs its steps in |
 | `make airflow-up` / `make airflow-down` | Start MLflow, the API and Airflow (http://localhost:8080), or stop Airflow ([setup](#retraining-and-batch-inspection-with-airflow)) |
@@ -1037,8 +1038,10 @@ src/anomaly_inspector/
 scripts/             training with MLflow logging, the three-model benchmark, experiments, gallery,
                      the smoke test and the tiny model CI builds the image with, the factory
                      simulator, the retraining pull request, the DagsHub token rotation
-docker/              the API, training and MLflow images (docker-compose.yml runs MLflow and the API)
+docker/              the API, training and MLflow images (docker-compose.yml runs MLflow, the API,
+                     Prometheus and Grafana)
 airflow/             Airflow 3 in Docker Compose, and the retrain_patchcore and batch_inspection DAGs
+monitoring/          what Prometheus scrapes, and Grafana's data source and dashboards as code
 .github/             the ci, model-ci and cd workflows, and the Dependabot settings
 tests/               unit and API tests on generated fake data, slow tests, a Locust load test
 notebooks/           exploratory data analysis (no outputs stored in git)
@@ -1088,7 +1091,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | 7 | Docker and a first deployment | ✅ |
 | 8 | CI/CD with GitHub Actions, including model quality gates | ✅ |
 | 9 | Retraining and batch inspection with Airflow, with DAG tests in CI | ✅ |
-| 10 | Monitoring and the feedback loop | ⬜ |
+| 10 | Monitoring and the feedback loop | 🚧 |
 
 ## Data and license
 
