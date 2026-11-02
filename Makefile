@@ -11,10 +11,12 @@ test:
 test-slow:
 	uv run pytest -m slow --no-cov
 # One process per run releases the feature bank in between. Close other apps first: each run
-# needs about 3 GB of RAM for bottle and more for carpet and screw.
+# needs about 3 GB of RAM for bottle and more for carpet and screw. The PatchCores take a few
+# minutes per category, STFPM trains for 20 to 40. Some only: make bench BENCH_IMPLS="ours stfpm"
+BENCH_IMPLS ?= ours anomalib-v1 stfpm
 bench:
 	for c in bottle carpet screw; do \
-		for impl in ours anomalib-v1; do \
+		for impl in $(BENCH_IMPLS); do \
 			uv run python scripts/benchmark_anomalib.py --category $$c --impl $$impl || exit 1; \
 		done; \
 	done
