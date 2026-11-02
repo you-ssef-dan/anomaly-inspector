@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from PIL import Image
 
 SCRIPT = Path(__file__).parents[2] / "scripts" / "simulate_line.py"
 POOL = [f"{i:03d}.png" for i in range(5)]
@@ -128,6 +129,25 @@ def test_a_photo_confirmed_good_never_goes_back_on_the_line(
         run(simulate, ws, repo, "--ticks", "1", "--batch", "1", "--confirm", "0")
 
 
+def test_darken_puts_the_photos_that_much_darker_on_the_line(
+    simulate: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    for name in ("data/simulation/bottle/good/000.png", "data/raw/mvtec_ad/bottle/test/hole/0.png"):
+        (repo / name).parent.mkdir(parents=True)
+        Image.new("RGB", (8, 8), (200, 100, 50)).save(repo / name)
+    ws = tmp_path / "ws"
+    args = ["--ticks", "1", "--batch", "3", "--defect-rate", "0", "--confirm", "0"]
+    run(simulate, ws, repo, *args, "--darken", "0.3")
+
+    photos = sorted((ws / "line" / "incoming").iterdir())
+    assert len(photos) == 3
+    for photo in photos:
+        with Image.open(photo) as image:
+            assert image.getpixel((0, 0)) == (140, 70, 35)  # 70% of every value
+    assert "30% darker" in capsys.readouterr().out
+
+
 def test_ticks_append_to_one_labels_file(simulate: ModuleType, repo: Path, tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     run(simulate, ws, repo, "--ticks", "2", "--batch", "4", "--confirm", "1")
@@ -141,7 +161,16 @@ def test_without_photos_it_says_to_pull_them(simulate: ModuleType, tmp_path: Pat
         run(simulate, tmp_path / "ws", tmp_path / "empty", "--ticks", "1")
 
 
-@pytest.mark.parametrize("bad", [["--defect-rate", "1.5"], ["--batch", "-1"], ["--interval", "-5"]])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["--defect-rate", "1.5"],
+        ["--batch", "-1"],
+        ["--interval", "-5"],
+        ["--darken", "1"],  # every photo black
+        ["--darken", "-0.2"],
+    ],
+)
 def test_impossible_settings_are_refused(
     simulate: ModuleType, repo: Path, tmp_path: Path, bad: list[str]
 ) -> None:

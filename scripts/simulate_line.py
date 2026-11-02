@@ -13,8 +13,10 @@ Every tick it copies:
 
     python3 scripts/simulate_line.py                                    # every 5 min, until Ctrl+C
     python3 scripts/simulate_line.py --ticks 1 --batch 0 --confirm 20   # 20 confirmed photos now
+    uv run python scripts/simulate_line.py --darken 0.3 --ticks 12      # an hour of dimmer light
 
-Standard library only, so any Python 3.12 runs it, without the project's environment.
+Standard library only, so any Python 3.12 runs it, without the project's environment; only
+--darken needs Pillow.
 """
 
 import argparse
@@ -45,10 +47,17 @@ def defect_photos(repo: Path, category: str) -> list[Path]:
     return sorted(p for p in test.glob("*/*.png") if p.parent.name != "good")
 
 
-def copy_atomically(source: Path, target: Path) -> None:
-    """Copy under a temporary name, then rename: a DAG listing *.png never sees half a file."""
+def copy_atomically(source: Path, target: Path, darken: float = 0.0) -> None:
+    """Copy under a temporary name, then rename: a DAG listing *.png never sees half a file.
+    With `darken`, every pixel loses that fraction of its value, as under a dimmer light."""
     partial = target.with_name(target.name + ".part")
-    shutil.copyfile(source, partial)
+    if darken:
+        from PIL import Image  # this option only: the rest needs the standard library alone
+
+        with Image.open(source) as image:
+            image.point(lambda value: round(value * (1 - darken))).save(partial, format="PNG")
+    else:
+        shutil.copyfile(source, partial)
     os.replace(partial, target)
 
 
@@ -59,6 +68,7 @@ def send_to_line(
     count: int,
     defect_rate: float,
     rng: random.Random,
+    darken: float = 0.0,
 ) -> list[dict[str, str]]:
     """Put `count` photos on the line; each is a defect with probability `defect_rate`."""
     trained_on = confirmed_before(workspace, category)
@@ -93,7 +103,7 @@ def send_to_line(
             writer.writeheader()
         writer.writerows(rows)
     for row in rows:
-        copy_atomically(repo / row["source"], line / row["file"])
+        copy_atomically(repo / row["source"], line / row["file"], darken)
     return rows
 
 
@@ -129,9 +139,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--interval", type=float, default=300, help="seconds between ticks")
     parser.add_argument("--ticks", type=int, default=0, help="how many ticks; 0 = until Ctrl+C")
     parser.add_argument("--seed", type=int, help="the same seed picks the same photos")
+    parser.add_argument(
+        "--darken", type=float, default=0.0, help="0.3: the line's photos 30%% darker (Pillow)"
+    )
     args = parser.parse_args(argv)
     if not 0 <= args.defect_rate <= 1:
         parser.error("--defect-rate must be between 0 and 1")
+    if not 0 <= args.darken < 1:
+        parser.error("--darken must be at least 0 and below 1")
     if min(args.batch, args.confirm, args.ticks) < 0 or args.interval < 0:
         parser.error("--batch, --confirm, --ticks and --interval cannot be negative")
 
@@ -148,14 +163,15 @@ def main(argv: list[str] | None = None) -> None:
             if tick:
                 time.sleep(args.interval)
             rows = send_to_line(
-                args.workspace, repo, args.category, args.batch, args.defect_rate, rng
+                args.workspace, repo, args.category, args.batch, args.defect_rate, rng, args.darken
             )
             confirmed = confirm_good(args.workspace, repo, args.category, args.confirm, rng)
             defective = sum(row["truth"] != "good" for row in rows)
             note = " (pool used up)" if len(confirmed) < args.confirm else ""
+            darker = f", {args.darken:.0%} darker" if args.darken else ""
             print(
                 f"{datetime.now():%H:%M:%S}  line: {len(rows)} photos, {defective} defective"
-                f"  |  confirmed good: {len(confirmed)}{note}",
+                f"{darker}  |  confirmed good: {len(confirmed)}{note}",
                 flush=True,
             )
             tick += 1
