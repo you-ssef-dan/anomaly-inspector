@@ -112,6 +112,22 @@ def test_each_pool_photo_is_confirmed_good_once(
     )  # copied, not moved
 
 
+def test_a_photo_confirmed_good_never_goes_back_on_the_line(
+    simulate: ModuleType, repo: Path, tmp_path: Path
+) -> None:
+    ws = tmp_path / "ws"
+    run(simulate, ws, repo, "--ticks", "1", "--batch", "0", "--confirm", "3")
+    trained_on = set((ws / "simulation" / "confirmed-bottle.txt").read_text().split())
+
+    run(simulate, ws, repo, "--ticks", "1", "--batch", "40", "--defect-rate", "0")
+    sent = {Path(row["source"]).name for row in labels(ws)}
+    assert sent == set(POOL) - trained_on  # only the 2 photos no model trained on
+
+    run(simulate, ws, repo, "--ticks", "1", "--batch", "0", "--confirm", "2")
+    with pytest.raises(SystemExit, match="none is new for the line"):
+        run(simulate, ws, repo, "--ticks", "1", "--batch", "1", "--confirm", "0")
+
+
 def test_ticks_append_to_one_labels_file(simulate: ModuleType, repo: Path, tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     run(simulate, ws, repo, "--ticks", "2", "--batch", "4", "--confirm", "1")

@@ -3,11 +3,13 @@
 Every tick it copies:
 
 - a batch of photos into <workspace>/line/incoming/, for the batch_inspection DAG: good parts
-  from the simulation pool (training never saw them) mixed with real defects from the test set.
-  The file names give nothing away; the truth goes to <workspace>/line/labels.csv.
+  from the simulation pool mixed with real defects from the test set. The file names give
+  nothing away; the truth goes to <workspace>/line/labels.csv.
 - a few pool photos into <workspace>/incoming/<category>/good/, as if a person had confirmed
   them good, for the retrain_patchcore DAG. Each pool photo is confirmed once at most: training
-  refuses the same image twice.
+  refuses the same image twice. A confirmed photo never goes on the line again: the next model
+  trains on it, and a real line never shows the same part twice. (The daily drift check caught
+  it: the 19 bottle photos retraining had used scored lower than any new part.)
 
     python3 scripts/simulate_line.py                                    # every 5 min, until Ctrl+C
     python3 scripts/simulate_line.py --ticks 1 --batch 0 --confirm 20   # 20 confirmed photos now
@@ -32,6 +34,12 @@ def pool_photos(repo: Path, category: str) -> list[Path]:
     return sorted((repo / "data" / "simulation" / category / "good").glob("*.png"))
 
 
+def confirmed_before(workspace: Path, category: str) -> set[str]:
+    """The pool photos already confirmed good, from the ledger: they are training data now."""
+    ledger = workspace / "simulation" / f"confirmed-{category}.txt"
+    return set(ledger.read_text().split()) if ledger.exists() else set()
+
+
 def defect_photos(repo: Path, category: str) -> list[Path]:
     test = repo / "data" / "raw" / "mvtec_ad" / category / "test"
     return sorted(p for p in test.glob("*/*.png") if p.parent.name != "good")
@@ -53,7 +61,14 @@ def send_to_line(
     rng: random.Random,
 ) -> list[dict[str, str]]:
     """Put `count` photos on the line; each is a defect with probability `defect_rate`."""
-    goods, defects = pool_photos(repo, category), defect_photos(repo, category)
+    trained_on = confirmed_before(workspace, category)
+    goods = [p for p in pool_photos(repo, category) if p.name not in trained_on]
+    defects = defect_photos(repo, category)
+    if count and not goods:
+        raise SystemExit(
+            f"Every {category} pool photo was confirmed good, so none is new for the line. "
+            "Run it with --confirm 0, or start from an empty workspace/simulation/ ledger."
+        )
     line = workspace / "line" / "incoming"
     line.mkdir(parents=True, exist_ok=True)
     sent_at = datetime.now(UTC)
@@ -87,7 +102,7 @@ def confirm_good(
 ) -> list[str]:
     """Copy up to `count` pool photos never confirmed before into incoming/<category>/good/."""
     ledger = workspace / "simulation" / f"confirmed-{category}.txt"
-    done = set(ledger.read_text().split()) if ledger.exists() else set()
+    done = confirmed_before(workspace, category)
     fresh = [p for p in pool_photos(repo, category) if p.name not in done]
     picked = sorted(rng.sample(fresh, min(count, len(fresh))))
     # The ledger first: a crash then loses a confirmation instead of repeating one.

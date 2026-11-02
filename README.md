@@ -436,9 +436,9 @@ flowchart LR
 
 | Workflow | Runs on | What it does | Time |
 | --- | --- | --- | --- |
-| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 363 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 376 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
-| [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
+| [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the three Airflow DAGs, in Airflow's own image | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `alert-rules` | same | Prometheus's config and alert rules load, and the rules' tests pass | seconds, plus pulling Prometheus's image |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
 | [`cd`](.github/workflows/cd.yml) | a published release (`v*`), or by hand on one | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
@@ -716,9 +716,10 @@ uvx --from actionlint-py actionlint
 
 ## Retraining and batch inspection with Airflow
 
-Two [Airflow 3](https://airflow.apache.org) DAGs run on the laptop without me.
+Three [Airflow 3](https://airflow.apache.org) DAGs run on the laptop without me.
 `retrain_patchcore` turns photos that people confirmed good into a new model and proposes it in a
-pull request. `batch_inspection` scores the factory line every 10 minutes. Airflow only
+pull request. `batch_inspection` scores the factory line every 10 minutes. `drift_report` checks
+every day that the line still looks like what the model was built for. Airflow only
 orchestrates: every ML step runs in the training image, and scoring is the API's job. And it never
 deploys: a new champion becomes a pull request, CI checks it, I merge it, and a release ships it.
 
@@ -733,6 +734,7 @@ flowchart LR
   li --> bi["batch_inspection<br/>every 10 min"]
   bi <-->|HTTP| api["inspection API"]
   bi -->|flagged| review["review/<br/>for a person"]
+  bi -.->|inspection log| dr["drift_report<br/>daily"]
   bi -->|passed| arch["archive/line/"]
   bi --> log[("inspection log<br/>Parquet")]
 ```
@@ -832,6 +834,41 @@ Two rows of the log (it also has `category`, `scored_at`, `run_id`, and `date` f
 | `20261101T213446Z-2f5b658e.png` | 1.489 | 2.242 | false | `4b5af98…` | 805 |
 | `20261101T213446Z-acc678e6.png` | 2.991 | 2.242 | true | `4b5af98…` | 456 |
 
+### Daily drift check: `drift_report`
+
+Once a day, it compares the last 24 hours of the inspection log with the reference of the model
+that scored them (`models/patchcore/<category>/reference.parquet`, a DVC output next to the
+model), and writes `reports/drift/<day>.md` in the workspace. Any alert fails `check`: that red
+task is the alert, and the report says what moved.
+
+| Task | Where | What it does |
+| --- | --- | --- |
+| `write_report` | training image | Takes the code and the references of main (`git archive`, `dvc.api`) from Airflow's clone without a checkout: the retraining DAG may be using its working tree. Measures each photo again, compares, writes the report. Its last line, the verdict, goes to `check` |
+| `check` | Airflow | Fails on any alert, without retrying |
+
+Per category, with only the photos the reference's model scored:
+
+| Signal | Last 24 hours | Reference | Alert |
+| --- | --- | --- | --- |
+| Anomaly score | photos the model passed | photos it passed | PSI above 0.25 **and** KS p-value below 0.01 |
+| Brightness, contrast, sharpness | all photos | all photos | the same |
+| Share flagged | every photo the line sent | its prediction for a line with 10% defects | more than 10 points above |
+
+- **Both tests must agree.** With a few dozen reference photos, a normal day here gave every
+  signal a PSI between 0.27 and 0.53, while KS saw nothing (p from 0.02 to 0.27).
+- **Each photo counts once** (by its SHA-1): the simulated line replays a pool of 42 bottle
+  photos, and repeats would make KS sure of differences it cannot see.
+- **Scores of the photos the model passed.** 30% darker, the bottles all score above the
+  threshold (median 2.35, against 1.53), so that shows in the share flagged and in brightness.
+- **Half a photo added to every PSI bin.** With 33 photos a bin can stay empty by chance, and the
+  usual 0.000001 turned that one bin into a PSI of about 2.
+
+**Its first run caught a flaw in the simulation.** The scores had drifted, lower than the
+reference's: 22 of the 60 photos were among the 19 that retraining (#49) had added to the training
+set, because the simulator kept sending confirmed photos to the line. Those had a PSI of 5.98; the
+23 pool photos no model trained on, once each, a KS p-value of 0.155. A real line never shows the
+same part twice, so the simulator no longer does either. Since then, a normal day raises no alert.
+
 ### The factory, simulated
 
 [`scripts/simulate_line.py`](scripts/simulate_line.py) stands in for the camera and for the people
@@ -840,7 +877,8 @@ Two rows of the log (it also has `category`, `scored_at`, `run_id`, and `date` f
 - **The line.** Every tick (5 minutes by default) it puts a batch of photos in `line/incoming/`:
   good parts from the simulation pool, the 20% of each category's good training photos held back
   since Phase 1 so training never saw them, mixed with real defects from the test set (10% by
-  default). File names give nothing away; the truth goes to `line/labels.csv`.
+  default). Never a photo confirmed good below: the next model trains on it. File names give
+  nothing away; the truth goes to `line/labels.csv`.
 - **The people.** It confirms a few pool photos good (2 per tick by default) into
   `incoming/<category>/good/`, each one once at most.
 
@@ -858,6 +896,7 @@ Copies are atomic (a `.part` name, then a rename), so a DAG never reads half a p
   archive/confirmed/<run>/        photos a retraining pull request carries
   archive/line/<day>/             photos that passed
   inspection_log/date=<day>/      one Parquet file per batch_inspection run
+  reports/drift/<day>.md          the daily drift report
 ```
 
 [`airflow/docker-compose.yaml`](airflow/docker-compose.yaml) is the official Airflow 3.3.2 file,
@@ -896,14 +935,15 @@ runs the same command.
 
 | What | Checked |
 | --- | --- |
-| Both DAGs import | No import errors, and exactly these two DAGs |
-| Schedules | Weekly and every 10 minutes, no catch-up, one run at a time |
+| The DAGs import | No import errors, and exactly these three DAGs |
+| Schedules | Weekly, every 10 minutes and daily, no catch-up, one run at a time |
 | Retraining order | Each step before the next; `decide` leads to `open_pull_request` or `no_change`; `archive_incoming` after the pull request; `ingest` skips the rest with exit code 99 |
 | `decide` | Any new champion opens a pull request; none ends in `no_change` |
 | Secrets | Every training step gets the DagsHub token, hidden; only `open_pull_request` gets the GitHub token; no token in the visible environment; `incoming/` mounted read-only |
 | `list_new_images` | 23 photos make chunks of 10, 10 and 3; a photo still being copied (`.part`) waits |
 | `score_chunk` | Against a fake API: the photo goes to `/v1/predict`, the empty heatmap is dropped, and a 503 fails the task, so Airflow retries it |
 | `store_and_route` | Flagged to `review/`, passed to the archive, the line emptied. Run twice, like a retry: still one log file, with each photo once |
+| `drift_report` | `write_report` runs the code of the run's commit (main by default) in the training image, the DagsHub token hidden; `check` fails only when the verdict lists an alert |
 
 They catch real mistakes: giving the GitHub token to the `retrain` step makes
 `test_only_open_pull_request_gets_the_github_token` fail.
@@ -929,6 +969,10 @@ docker compose exec airflow-scheduler airflow tasks clear retrain_patchcore \
 # Stop the 10-minute inspection, or start it again
 docker compose exec airflow-scheduler airflow dags pause batch_inspection
 docker compose exec airflow-scheduler airflow dags unpause batch_inspection
+# The drift check now rather than at midnight UTC, then its report
+docker compose exec airflow-scheduler airflow dags trigger drift_report \
+  -l "$(date -u +%Y-%m-%dT%H:%M:00+00:00)"
+cat ~/airflow-workspace/reports/drift/"$(date -u +%F)".md
 cd ..
 
 # Read the inspection log
@@ -961,7 +1005,7 @@ make airflow-down
 3. **Airflow's settings:** `cp airflow/.env.example airflow/.env`, `chmod 600 airflow/.env`, then
    fill it in. Each line says where its value comes from.
 4. **Start:** `make train-image`, `make mlflow-up api-up` (it creates the `inspection` network),
-   then `cd airflow && docker compose up airflow-init`, then `make airflow-up`. Both DAGs start
+   then `cd airflow && docker compose up airflow-init`, then `make airflow-up`. The DAGs start
    paused: unpause them in the UI.
 
 </details>
@@ -1041,15 +1085,16 @@ src/anomaly_inspector/
   evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
   export/            ONNX export with metadata, INT8 quantisation, latency benchmark
   pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise,
-                     and the drift reference; and the retraining DAG's steps: ingest new photos,
-                     register in MLflow
+                     and the drift reference; the retraining DAG's steps: ingest new photos,
+                     register in MLflow; and the daily drift check
   serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
 scripts/             training with MLflow logging, the three-model benchmark, experiments, gallery,
                      the smoke test and the tiny model CI builds the image with, the factory
                      simulator, the retraining pull request, the DagsHub token rotation
 docker/              the API, training and MLflow images (docker-compose.yml runs MLflow, the API,
                      Prometheus and Grafana)
-airflow/             Airflow 3 in Docker Compose, and the retrain_patchcore and batch_inspection DAGs
+airflow/             Airflow 3 in Docker Compose, and the retrain_patchcore, batch_inspection and
+                     drift_report DAGs
 monitoring/          what Prometheus scrapes, the alert rules and their tests, and Grafana's data
                      source and dashboard as code
 .github/             the ci, model-ci and cd workflows, and the Dependabot settings
