@@ -1,13 +1,13 @@
 {
   "bottle/anomalib-v1-k1": {
-    "aupro": 0.9408703313207084,
+    "aupro": 0.939405169811956,
     "category": "bottle",
-    "fit_seconds": 62.42473404298653,
+    "fit_seconds": 60.30884318999597,
     "image_auroc": 1.0,
     "impl": "anomalib-v1",
-    "ms_per_image": 184.38551869875954,
-    "peak_ram_mb": 2824.0390625,
-    "pixel_auroc": 0.9868986317037789,
+    "ms_per_image": 100.12105386756804,
+    "peak_ram_mb": 3097.01171875,
+    "pixel_auroc": 0.9868277864810039,
     "settings": {
       "backbone": "wide_resnet50_2",
       "coreset_ratio": 0.01,
@@ -18,17 +18,17 @@
       "torch": "2.14.1+cpu"
     },
     "test_images": 83,
-    "train_images": 150
+    "train_images": 168
   },
   "bottle/anomalib-v1-k9": {
-    "aupro": 0.94166252531023,
+    "aupro": 0.939405169811956,
     "category": "bottle",
-    "fit_seconds": 64.10641677098465,
+    "fit_seconds": 59.3368421549967,
     "image_auroc": 1.0,
     "impl": "anomalib-v1",
-    "ms_per_image": 173.1382088913829,
-    "peak_ram_mb": 2826.55078125,
-    "pixel_auroc": 0.9868118492950249,
+    "ms_per_image": 97.60747648204371,
+    "peak_ram_mb": 3096.9453125,
+    "pixel_auroc": 0.9868277864810039,
     "settings": {
       "backbone": "wide_resnet50_2",
       "coreset_ratio": 0.01,
@@ -39,17 +39,17 @@
       "torch": "2.14.1+cpu"
     },
     "test_images": 83,
-    "train_images": 150
+    "train_images": 168
   },
   "bottle/ours": {
-    "aupro": 0.9413482308402751,
+    "aupro": 0.9388069617288902,
     "category": "bottle",
-    "fit_seconds": 54.08726341999136,
+    "fit_seconds": 81.72465680599998,
     "image_auroc": 1.0,
     "impl": "ours",
-    "ms_per_image": 202.1256421446514,
-    "peak_ram_mb": 2824.75390625,
-    "pixel_auroc": 0.9865965756477427,
+    "ms_per_image": 158.95043746983782,
+    "peak_ram_mb": 3146.87890625,
+    "pixel_auroc": 0.9866070426672715,
     "settings": {
       "backbone": "wide_resnet50_2",
       "coreset_ratio": 0.01,
@@ -60,6 +60,231 @@
       "torch": "2.14.1+cpu"
     },
     "test_images": 83,
-    "train_images": 150
+    "train_images": 168
+  },
+  "bottle/stfpm": {
+    "aupro": 0.9620419817260214,
+    "best_epoch": 67,
+    "best_val_loss": 0.10639213770627975,
+    "category": "bottle",
+    "epochs_run": 78,
+    "fit_seconds": 987.027120605002,
+    "image_auroc": 1.0,
+    "impl": "stfpm",
+    "ms_per_image": 33.7137906625937,
+    "peak_ram_mb": 2142.05859375,
+    "pixel_auroc": 0.98760876044283,
+    "settings": {
+      "backbone": "resnet18",
+      "image_size": 256,
+      "pretrained": true,
+      "seed": 42,
+      "stfpm": {
+        "batch_size": 32,
+        "epochs": 100,
+        "lr": 0.4,
+        "min_delta": 0.0001,
+        "momentum": 0.9,
+        "patience": 10,
+        "seed": 42,
+        "weight_decay": 0.0001
+      },
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 83,
+    "train_images": 168,
+    "val_images": 19
+  },
+  "carpet/anomalib-v1-k1": {
+    "aupro": 0.924549788052763,
+    "category": "carpet",
+    "fit_seconds": 117.78997023299598,
+    "image_auroc": 0.9839486356340288,
+    "impl": "anomalib-v1",
+    "ms_per_image": 145.21527391448956,
+    "peak_ram_mb": 3471.51953125,
+    "pixel_auroc": 0.9897610371930705,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 1,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 117,
+    "train_images": 201
+  },
+  "carpet/anomalib-v1-k9": {
+    "aupro": 0.924549788052763,
+    "category": "carpet",
+    "fit_seconds": 120.65180895999947,
+    "image_auroc": 0.9843499197431781,
+    "impl": "anomalib-v1",
+    "ms_per_image": 145.75276225626183,
+    "peak_ram_mb": 3468.63671875,
+    "pixel_auroc": 0.9897610371930705,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 9,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 117,
+    "train_images": 201
+  },
+  "carpet/ours": {
+    "aupro": 0.9315159929792975,
+    "category": "carpet",
+    "fit_seconds": 114.8115537900012,
+    "image_auroc": 0.9887640449438202,
+    "impl": "ours",
+    "ms_per_image": 169.915434418773,
+    "peak_ram_mb": 3562.9765625,
+    "pixel_auroc": 0.9902162961138967,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": null,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 117,
+    "train_images": 201
+  },
+  "carpet/stfpm": {
+    "aupro": 0.9420408811164166,
+    "best_epoch": 99,
+    "best_val_loss": 0.13259854912757874,
+    "category": "carpet",
+    "epochs_run": 100,
+    "fit_seconds": 1988.5291999280016,
+    "image_auroc": 0.8607544141252007,
+    "impl": "stfpm",
+    "ms_per_image": 49.616842324950966,
+    "peak_ram_mb": 2136.328125,
+    "pixel_auroc": 0.9862936570819347,
+    "settings": {
+      "backbone": "resnet18",
+      "image_size": 256,
+      "pretrained": true,
+      "seed": 42,
+      "stfpm": {
+        "batch_size": 32,
+        "epochs": 100,
+        "lr": 0.4,
+        "min_delta": 0.0001,
+        "momentum": 0.9,
+        "patience": 10,
+        "seed": 42,
+        "weight_decay": 0.0001
+      },
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 117,
+    "train_images": 201,
+    "val_images": 23
+  },
+  "screw/anomalib-v1-k1": {
+    "aupro": 0.8940577314660535,
+    "category": "screw",
+    "fit_seconds": 144.31623899999977,
+    "image_auroc": 0.8971100635376102,
+    "impl": "anomalib-v1",
+    "ms_per_image": 148.36042659371742,
+    "peak_ram_mb": 3851.72265625,
+    "pixel_auroc": 0.9773003899386555,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 1,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/anomalib-v1-k9": {
+    "aupro": 0.8940577314660535,
+    "category": "screw",
+    "fit_seconds": 144.66480519899778,
+    "image_auroc": 0.8911662225865956,
+    "impl": "anomalib-v1",
+    "ms_per_image": 148.0159347062454,
+    "peak_ram_mb": 3851.8515625,
+    "pixel_auroc": 0.9773003899386555,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 9,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/ours": {
+    "aupro": 0.8744494251009068,
+    "category": "screw",
+    "fit_seconds": 99.42452629499894,
+    "image_auroc": 0.8942406230784997,
+    "impl": "ours",
+    "ms_per_image": 108.36088937489876,
+    "peak_ram_mb": 3988.89453125,
+    "pixel_auroc": 0.9771008996437471,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": null,
+      "pretrained": true,
+      "seed": 42,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/stfpm": {
+    "aupro": 0.886144263087163,
+    "best_epoch": 95,
+    "best_val_loss": 0.13963410258293152,
+    "category": "screw",
+    "epochs_run": 100,
+    "fit_seconds": 1419.8019184939985,
+    "image_auroc": 0.8108218897315024,
+    "impl": "stfpm",
+    "ms_per_image": 21.37456692480555,
+    "peak_ram_mb": 2145.49609375,
+    "pixel_auroc": 0.9767916409596109,
+    "settings": {
+      "backbone": "resnet18",
+      "image_size": 256,
+      "pretrained": true,
+      "seed": 42,
+      "stfpm": {
+        "batch_size": 32,
+        "epochs": 100,
+        "lr": 0.4,
+        "min_delta": 0.0001,
+        "momentum": 0.9,
+        "patience": 10,
+        "seed": 42,
+        "weight_decay": 0.0001
+      },
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230,
+    "val_images": 26
   }
 }

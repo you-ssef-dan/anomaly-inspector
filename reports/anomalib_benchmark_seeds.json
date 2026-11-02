@@ -1,0 +1,107 @@
+{
+  "screw/anomalib-v1-k9-seed1": {
+    "aupro": 0.8633382976395503,
+    "category": "screw",
+    "fit_seconds": 108.03274950999912,
+    "image_auroc": 0.9059233449477352,
+    "impl": "anomalib-v1",
+    "ms_per_image": 105.7281250250071,
+    "peak_ram_mb": 3851.578125,
+    "pixel_auroc": 0.9743357009994696,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 9,
+      "pretrained": true,
+      "seed": 1,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/anomalib-v1-k9-seed2": {
+    "aupro": 0.8907678554198301,
+    "category": "screw",
+    "fit_seconds": 108.45382743499795,
+    "image_auroc": 0.9167862266857962,
+    "impl": "anomalib-v1",
+    "ms_per_image": 105.97057546233373,
+    "peak_ram_mb": 3851.328125,
+    "pixel_auroc": 0.9791108721372455,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": 9,
+      "pretrained": true,
+      "seed": 2,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/ours-seed1": {
+    "aupro": 0.8987291646984057,
+    "category": "screw",
+    "fit_seconds": 95.33594088900281,
+    "image_auroc": 0.8983398237343718,
+    "impl": "ours",
+    "ms_per_image": 115.82589743134122,
+    "peak_ram_mb": 3964.37109375,
+    "pixel_auroc": 0.9777129115437857,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": null,
+      "pretrained": true,
+      "seed": 1,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/ours-seed2": {
+    "aupro": 0.8961115436211792,
+    "category": "screw",
+    "fit_seconds": 99.15349537199654,
+    "image_auroc": 0.9081779053084649,
+    "impl": "ours",
+    "ms_per_image": 113.76243830004569,
+    "peak_ram_mb": 3952.3125,
+    "pixel_auroc": 0.9813974668289691,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": null,
+      "pretrained": true,
+      "seed": 2,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  },
+  "screw/ours-seed3": {
+    "aupro": 0.8849936234914401,
+    "category": "screw",
+    "fit_seconds": 88.93587517199921,
+    "image_auroc": 0.9007993441278951,
+    "impl": "ours",
+    "ms_per_image": 113.68404611234837,
+    "peak_ram_mb": 3952.80078125,
+    "pixel_auroc": 0.9775825000841447,
+    "settings": {
+      "backbone": "wide_resnet50_2",
+      "coreset_ratio": 0.01,
+      "image_size": 256,
+      "num_neighbors": null,
+      "pretrained": true,
+      "seed": 3,
+      "torch": "2.14.1+cpu"
+    },
+    "test_images": 160,
+    "train_images": 230
+  }
+}

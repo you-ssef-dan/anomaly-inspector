@@ -43,32 +43,73 @@ Dataset: [MVTec AD](https://www.mvtec.com/research-teaching/datasets/mvtec-ad), 
 
 | Holdout | Images (good + defective) | Image AUROC | Pixel AUROC | AUPRO | ms per image |
 | --- | --- | --- | --- | --- | --- |
-| Bottle | 10 + 32 | 1.0000 | 0.9862 | 0.9410 | 99 |
-| Carpet | 14 + 45 | 0.9873 | 0.9896 | 0.9420 | 104 |
-| Screw | 21 + 59 | 0.8918 | 0.9778 | 0.8852 | 107 |
+| Bottle | 10 + 32 | 1.0000 | 0.9862 | 0.9364 | 187 |
+| Carpet | 14 + 45 | 0.9873 | 0.9896 | 0.9420 | 196 |
+| Screw | 21 + 59 | 0.8918 | 0.9778 | 0.8852 | 213 |
 
 - **AUPRO** counts every defect region equally, however small, so it is the metric that cares about
   tiny defects. Screw is the hard category: tiny defects on parts lying at any angle.
 - Each row comes from the DVC pipeline (`dvc repro`), which writes it to
   `reports/patchcore/<category>/metrics.json`; the model is registered in MLflow as the current
   `champion` of its category (see [tracking](#tracking-and-model-registry)).
+- Bottle's model is the one the [retraining DAG](#retraining-and-batch-inspection-with-airflow)
+  proposed in [PR #49](https://github.com/you-ssef-dan/anomaly-inspector/pull/49): trained on 20
+  more confirmed good photos, its AUPRO went from 0.941 to 0.936, inside the promotion tolerance.
 - The holdout sets are small: with 21 good screws, a single image can move image AUROC by up to
   1/21, about 5 points.
 - Latency is the model alone, on a laptop CPU (Intel Core Ultra 5 125H), batch 8. It depends on
-  what else the machine is doing: the same screw model measured 169 ms during the experiments.
+  what else the machine is doing: this run was the retraining DAG's, next to Airflow, MLflow and
+  the API, and the previous one, on a quiet laptop, measured 99 to 107 ms.
 
-**Checked against anomalib.** On bottle's full test set, with identical inputs, splits, coreset size,
-seed and metric code (anomalib's backbone gets the same ImageNet weights), the two implementations
-differ by less than 0.001:
+**Three models, three categories.** The same images, splits, metric code and seed (42) for this
+repo's PatchCore, anomalib's PatchCore (given the same ImageNet weights, so the algorithm is the only
+difference) and this repo's STFPM (ResNet-18, the paper's SGD at learning rate 0.4, batch 32, up to
+100 epochs, stopped early when the loss on `val_normal`, which holds good images only, stops falling).
+Scored on each category's full test set, `calib` and `holdout` together, so these numbers are not
+the holdout ones above:
 
-| Bottle, full test set (83 images) | Image AUROC | Pixel AUROC | AUPRO |
-| --- | --- | --- | --- |
-| PatchCore (this repo) | 1.0000 | 0.9866 | 0.9413 |
-| anomalib PatchCore | 1.0000 | 0.9868 | 0.9417 |
+| Full test set | Model | Image AUROC | Pixel AUROC | AUPRO | Fitting |
+| --- | --- | --- | --- | --- | --- |
+| **Bottle** (20 good + 63 defective) | PatchCore, this repo | 1.0000 | 0.9866 | 0.9388 | 82 s |
+|  | PatchCore, anomalib | 1.0000 | 0.9868 | 0.9394 | 59 s |
+|  | STFPM, this repo | 1.0000 | 0.9876 | 0.9620 | 78 epochs |
+| **Carpet** (28 good + 89 defective) | PatchCore, this repo | 0.9888 | 0.9902 | 0.9315 | 115 s |
+|  | PatchCore, anomalib | 0.9843 | 0.9898 | 0.9245 | 121 s |
+|  | STFPM, this repo | 0.8608 | 0.9863 | 0.9420 | 100 epochs (the cap) |
+| **Screw** (41 good + 119 defective) | PatchCore, this repo | 0.8942 | 0.9771 | 0.8744 | 99 s |
+|  | PatchCore, anomalib | 0.8912 | 0.9773 | 0.8941 | 145 s |
+|  | STFPM, this repo | 0.8108 | 0.9768 | 0.8861 | 100 epochs (the cap) |
 
-- Our AUPRO code agrees with anomalib's to 5 decimals on the same maps (a slow test checks it).
-- Full numbers: [`reports/anomalib_benchmark.json`](reports/anomalib_benchmark.json). The data and
-  its limits are described in the [data card](docs/data_card.md).
+- **The two PatchCores agree.** Pixel AUROC differs by 0.0005 or less and image AUROC by 0.005 or
+  less everywhere; AUPRO by 0.0006 on bottle and 0.007 on carpet. Screw's AUPRO is 0.020 apart, but
+  screw is noisy: four seeds of ours give 0.874 to 0.899, three of anomalib's 0.863 to 0.894 (means
+  0.889 and 0.883), so one seed cannot rank them there
+  ([`reports/anomalib_benchmark_seeds.json`](reports/anomalib_benchmark_seeds.json)). Our AUPRO code
+  agrees with anomalib's to 5 decimals on the same maps (a slow test checks it).
+- **STFPM locates defects about as well, but decides worse on whole images.** Its pixel AUROC is within
+  0.004 of PatchCore's everywhere, and its AUPRO is higher on bottle (+0.023) and carpet (+0.011) and
+  inside PatchCore's seed range on screw (0.886 against 0.874 to 0.899); with one seed each, small
+  gaps like these prove little. But its image AUROC is 13 points lower on carpet (0.861 against
+  0.989) and 8 on screw (0.811 against 0.894), far beyond that noise. An image's score is the highest
+  value of its map, so one bright spot on a good part decides; that is a guess, not something this
+  benchmark tested.
+- **STFPM runs 5 to 7 times faster, and takes much longer to prepare.** One image takes about 21 ms
+  against 100 to 150 ms for PatchCore (idle laptop, batch 8, 256 px), but bottle needed 16 minutes of
+  training, where PatchCore needs one to two and a half minutes to fill its memory bank. On carpet and
+  screw it ran all 100 epochs: the best validation loss came at epoch 100 and 96, so early stopping
+  never triggered and more epochs might help (this benchmark keeps the paper's 100). At 10 to 13
+  seconds per epoch, that is about 20 minutes each.
+- **PatchCore is the one that ships:** the DVC pipeline trains, exports, quantises, gates and
+  retrains it. STFPM is the faster alternative and is not exported.
+- **Reproducible.** Every model is seeded, and a rerun on the same machine gives the same numbers:
+  tests check it on fake data, and I checked it on the real data for anomalib (screw) and STFPM
+  (bottle). An STFPM run also goes to MLflow (experiment `stfpm`) when the server is up. Full
+  numbers: [`reports/anomalib_benchmark.json`](reports/anomalib_benchmark.json); `make bench` redoes
+  all of it in about an hour and a half.
+- **Timings are the weak spot.** The JSON's `ms_per_image` moves with what else the laptop is doing:
+  the same STFPM network took 34, 50 and 21 ms in three runs (carpet's next to the screw training),
+  so the text uses the idle laptop's figures. The data and its limits are described in the
+  [data card](docs/data_card.md).
 
 ## What changes the result
 
@@ -394,7 +435,7 @@ flowchart LR
 
 | Workflow | Runs on | What it does | Time |
 | --- | --- | --- | --- |
-| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 342 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 344 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
@@ -954,7 +995,7 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make setup` | Install all dependencies and the pre-commit hooks |
 | `make check` | Ruff, strict mypy and the fast tests (what CI runs) |
 | `make test-slow` | Tests that need the optional `bench` extra, such as the comparison with anomalib |
-| `make bench` | Benchmark PatchCore against anomalib on all categories (needs the data and several GB of RAM) |
+| `make bench` | Benchmark our PatchCore and STFPM against anomalib's PatchCore on all categories (about 1.5 hours; needs the data and several GB of RAM) |
 | `make mlflow-up` / `make mlflow-down` | Start or stop MLflow and PostgreSQL (needs Docker and a `.env`) |
 | `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
 | `make smoke` | Smoke test of the running API: ready, a good part passes, a defective one is rejected |
@@ -992,7 +1033,7 @@ src/anomaly_inspector/
   pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise;
                      and the retraining DAG's steps: ingest new photos, register in MLflow
   serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
-scripts/             training with MLflow logging, benchmark vs anomalib, experiments, gallery,
+scripts/             training with MLflow logging, the three-model benchmark, experiments, gallery,
                      the smoke test and the tiny model CI builds the image with, the factory
                      simulator, the retraining pull request, the DagsHub token rotation
 docker/              the API, training and MLflow images (docker-compose.yml runs MLflow and the API)
@@ -1038,7 +1079,7 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
 | --- | --- | --- |
 | 0 | Repo foundations: uv, ruff, mypy, pytest, pre-commit, CI, branch protection | ✅ |
 | 1 | Data and DVC: manifest, validation, splits, preprocessing, EDA, data card | ✅ |
-| 2 | Models in PyTorch: PatchCore, STFPM, metrics, anomalib benchmark, experiments, heatmap gallery | 🚧 |
+| 2 | Models in PyTorch: PatchCore, STFPM, metrics, anomalib benchmark, experiments, heatmap gallery | ✅ |
 | 3 | Experiment tracking and model registry with MLflow | ✅ |
 | 4 | Full DVC pipeline: train, evaluate, export per category | ✅ |
 | 5 | ONNX export, optimisation and quantisation | ✅ |
