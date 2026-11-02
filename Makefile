@@ -1,4 +1,4 @@
-.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down airflow-up airflow-down train-image smoke test-dags
+.PHONY: setup lint test test-slow bench check mlflow-up mlflow-down api-up api-down monitoring-up monitoring-down airflow-up airflow-down train-image smoke test-dags
 setup:
 	uv sync --all-extras
 	uv run pre-commit install
@@ -37,6 +37,12 @@ api-up:
 	docker compose --profile api up -d --build api
 api-down:
 	docker compose --profile api rm --stop --force api
+# Prometheus (http://localhost:9090) and Grafana (http://localhost:3000), with the API they watch.
+# Stopping keeps Prometheus's history: it lives in a Docker volume.
+monitoring-up: api-up
+	docker compose --profile monitoring up -d
+monitoring-down:
+	docker compose --profile monitoring rm --stop --force prometheus grafana
 # Airflow, after MLflow and the API: they create the `inspection` network it joins.
 # Needs airflow/.env (cp airflow/.env.example airflow/.env, then fill it). UI: http://localhost:8080
 # The DagsHub token comes from .dvc/config.local, its only copy on this laptop.

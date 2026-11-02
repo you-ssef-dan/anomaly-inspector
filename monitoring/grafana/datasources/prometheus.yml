@@ -1,0 +1,12 @@
+# Grafana's data source: the Prometheus service next to it. The fixed uid is how the dashboards
+# in ../dashboards refer to it.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s  # Prometheus's scrape interval: $__rate_interval is built from it
