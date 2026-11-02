@@ -103,6 +103,23 @@ stages:
         - reports/patchcore/${item}/export.json:
             cache: false
 
+  # What the daily drift check compares the line with: on val_normal and holdout, the score and
+  # decision of model.onnx through the API's own code, and the brightness, contrast and sharpness
+  # of each image. A stage of its own: no other stage reads it, so changing it re-runs nothing else.
+  reference_patchcore:
+    foreach: ${data.categories}
+    do:
+      cmd: python -m anomaly_inspector.pipelines.reference_patchcore --category ${item}
+      deps:
+        - models/patchcore/${item}/model.onnx
+        - data/processed/manifest.parquet
+        - src/anomaly_inspector/image_stats.py
+        - src/anomaly_inspector/preprocessing.py
+        - src/anomaly_inspector/serving/inference.py
+        - src/anomaly_inspector/pipelines/reference_patchcore.py
+      outs:
+        - models/patchcore/${item}/reference.parquet
+
   # An INT8 model calibrated on train images, and one speed table: PyTorch, ONNX FP32, ONNX INT8.
   optimize_patchcore:
     foreach: ${data.categories}

@@ -436,7 +436,7 @@ flowchart LR
 
 | Workflow | Runs on | What it does | Time |
 | --- | --- | --- | --- |
-| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 356 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 363 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `alert-rules` | same | Prometheus's config and alert rules load, and the rules' tests pass | seconds, plus pulling Prometheus's image |
@@ -748,7 +748,7 @@ git commands never touch the copy I work in. Steps marked *training image* run i
 | `new_data_ready` | Airflow | Are there at least 20 confirmed photos for a category? If none has, the run stops here. |
 | `start_branch` | training image | A `retrain/<time>` branch from `origin/main`, then `dvc pull`. Refuses to run if the image was built from another `uv.lock` than main's. |
 | `ingest` | training image | Copies the new photos into the training data, skipping any image the category already has (by SHA-1), then `dvc add` and a **commit**. Nothing new: the rest of the run is skipped. |
-| `retrain` | training image | `dvc repro`: train, evaluate (an MLflow run), export to ONNX, optimise. |
+| `retrain` | training image | `dvc repro`: train, evaluate (an MLflow run), export to ONNX, optimise, and the new model's drift reference. |
 | `register` | training image | Each retrained category becomes the MLflow challenger, and the promotion rules decide if it is the new champion. Its last line, like `{"bottle": true}`, goes to `decide`. |
 | `decide` | Airflow | A new champion: `open_pull_request`. None: `no_change`. |
 | `open_pull_request` | training image | Commits `dvc.lock` and the reports, `dvc push`, pushes the branch and opens the pull request through the GitHub API. Safe to retry. |
@@ -1031,6 +1031,7 @@ explains where to get it, how it is verified and how it is split.
 ```
 src/anomaly_inspector/
   preprocessing.py   one image function shared by training and serving; numpy + Pillow only
+  image_stats.py     brightness, contrast and sharpness of a photo, to spot a change of light or lens
   config.py          typed settings read from params.yaml
   tracking.py        what every MLflow run records (code, data and hardware tags, params)
   registry.py        champion and challenger: the promotion rules
@@ -1039,8 +1040,9 @@ src/anomaly_inspector/
   training/          STFPM training loop (seeded, early stopping, best checkpoint)
   evaluation/        AUROC, AUPRO, thresholds, ROC and PRO curves, failure gallery
   export/            ONNX export with metadata, INT8 quantisation, latency benchmark
-  pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise;
-                     and the retraining DAG's steps: ingest new photos, register in MLflow
+  pipelines/         one entry point per DVC stage: prepare, then train, evaluate, export, optimise,
+                     and the drift reference; and the retraining DAG's steps: ingest new photos,
+                     register in MLflow
   serving/           the FastAPI app, the ONNX inference wrapper, the heatmap (no PyTorch)
 scripts/             training with MLflow logging, the three-model benchmark, experiments, gallery,
                      the smoke test and the tiny model CI builds the image with, the factory

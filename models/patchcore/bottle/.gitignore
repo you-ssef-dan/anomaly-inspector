@@ -2,3 +2,4 @@
 /threshold.json
 /model.onnx
 /model.int8.onnx
+/reference.parquet

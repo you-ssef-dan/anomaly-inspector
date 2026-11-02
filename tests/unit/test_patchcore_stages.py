@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 import torch
 import yaml
+from PIL import Image
 from torch.utils.data import DataLoader
 
 from anomaly_inspector.config import load_params
@@ -17,14 +18,18 @@ from anomaly_inspector.data.dataset import ManifestDataset
 from anomaly_inspector.evaluation import thresholds
 from anomaly_inspector.evaluation.evaluate import evaluate, load_masks, predict
 from anomaly_inspector.export.onnx_export import OnnxPatchCore, read_metadata
+from anomaly_inspector.image_stats import image_stats
 from anomaly_inspector.models.storage import load_patchcore
 from anomaly_inspector.pipelines import (
     evaluate_patchcore,
     export_patchcore,
     optimize_patchcore,
+    reference_patchcore,
     train_patchcore,
 )
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
+from anomaly_inspector.serving.inference import Inspector
+from anomaly_inspector.serving.schemas import PredictResponse
 from anomaly_inspector.tracking import git_sha, md5_of
 
 MODEL = Path("models/patchcore/bottle/model.pt")
@@ -282,3 +287,29 @@ def test_optimize_writes_an_int8_model_and_one_speed_table(
         optimize_patchcore.int8_path("bottle").stat().st_size / 1e6
     )
     assert sizes["onnx_int8"] < sizes["onnx_fp32"]
+
+
+def test_the_reference_is_each_val_normal_and_holdout_image_as_the_api_sees_it(
+    fake_project: Path,
+) -> None:
+    for stage in (train_patchcore, evaluate_patchcore, export_patchcore, reference_patchcore):
+        stage.main(["--category", "bottle"])
+
+    reference = pd.read_parquet(reference_patchcore.reference_path("bottle"))
+    images = manifest().query("split in ['val_normal', 'holdout']")  # never train or calib
+    assert list(reference["path"]) == list(images["path"])
+    assert list(reference["label"]) == list(images["label"])
+    assert set(reference["split"]) == {"val_normal", "holdout"}
+    # The columns the inspection log has too carry the API's names, so the two line up.
+    shared = {"category", "anomaly_score", "threshold", "is_anomalous", "model_version"}
+    assert shared <= set(reference.columns) & set(PredictResponse.model_fields)
+
+    api = Inspector(export_patchcore.onnx_path("bottle"))  # the API's own model code
+    assert set(reference["threshold"]) == {api.threshold}
+    assert set(reference["model_version"]) == {api.version}
+    for row in reference.itertuples():
+        with Image.open(row.path) as image:
+            answer, stats = api.predict(image), image_stats(image)
+        assert row.anomaly_score == pytest.approx(answer.score)
+        assert row.is_anomalous == answer.is_anomalous
+        assert {name: getattr(row, name) for name in stats} == pytest.approx(stats)
