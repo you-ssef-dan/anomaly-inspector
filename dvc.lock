@@ -929,3 +929,102 @@ stages:
       hash: md5
       md5: 0c313635284c8a5a8909bf2754b499ce
       size: 716
+  reference_patchcore@bottle:
+    cmd: python -m anomaly_inspector.pipelines.reference_patchcore --category 
+      bottle
+    deps:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
+    - path: models/patchcore/bottle/model.onnx
+      hash: md5
+      md5: 060786be023feab31ca859d57889db4f
+      size: 110101679
+    - path: src/anomaly_inspector/image_stats.py
+      hash: md5
+      md5: 439fc92a2a7c62a2570ac6d01599c046
+      size: 1054
+    - path: src/anomaly_inspector/pipelines/reference_patchcore.py
+      hash: md5
+      md5: eb4529e0394d53ce3c356f7c6ed7c4ee
+      size: 2844
+    - path: src/anomaly_inspector/preprocessing.py
+      hash: md5
+      md5: a491d031e52487993d9456332b4ab7d9
+      size: 878
+    - path: src/anomaly_inspector/serving/inference.py
+      hash: md5
+      md5: 35a83e5d2e2a4f909a52122032188db2
+      size: 2920
+    outs:
+    - path: models/patchcore/bottle/reference.parquet
+      hash: md5
+      md5: 1a76ce58a8df0f3599698eb0e98bdc47
+      size: 10085
+  reference_patchcore@carpet:
+    cmd: python -m anomaly_inspector.pipelines.reference_patchcore --category 
+      carpet
+    deps:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
+    - path: models/patchcore/carpet/model.onnx
+      hash: md5
+      md5: 52ad82cf79e456b61b59c9b4996c98ab
+      size: 112178352
+    - path: src/anomaly_inspector/image_stats.py
+      hash: md5
+      md5: 439fc92a2a7c62a2570ac6d01599c046
+      size: 1054
+    - path: src/anomaly_inspector/pipelines/reference_patchcore.py
+      hash: md5
+      md5: eb4529e0394d53ce3c356f7c6ed7c4ee
+      size: 2844
+    - path: src/anomaly_inspector/preprocessing.py
+      hash: md5
+      md5: a491d031e52487993d9456332b4ab7d9
+      size: 878
+    - path: src/anomaly_inspector/serving/inference.py
+      hash: md5
+      md5: 35a83e5d2e2a4f909a52122032188db2
+      size: 2920
+    outs:
+    - path: models/patchcore/carpet/reference.parquet
+      hash: md5
+      md5: 28bcd0a050b42542afaa0c074f023e85
+      size: 10894
+  reference_patchcore@screw:
+    cmd: python -m anomaly_inspector.pipelines.reference_patchcore --category 
+      screw
+    deps:
+    - path: data/processed/manifest.parquet
+      hash: md5
+      md5: 4be6638d5c0b820e3125215bbeab9a8d
+      size: 58921
+    - path: models/patchcore/screw/model.onnx
+      hash: md5
+      md5: 54d5926bb62893ccea724794aaa4c4b1
+      size: 114003119
+    - path: src/anomaly_inspector/image_stats.py
+      hash: md5
+      md5: 439fc92a2a7c62a2570ac6d01599c046
+      size: 1054
+    - path: src/anomaly_inspector/pipelines/reference_patchcore.py
+      hash: md5
+      md5: eb4529e0394d53ce3c356f7c6ed7c4ee
+      size: 2844
+    - path: src/anomaly_inspector/preprocessing.py
+      hash: md5
+      md5: a491d031e52487993d9456332b4ab7d9
+      size: 878
+    - path: src/anomaly_inspector/serving/inference.py
+      hash: md5
+      md5: 35a83e5d2e2a4f909a52122032188db2
+      size: 2920
+    outs:
+    - path: models/patchcore/screw/reference.parquet
+      hash: md5
+      md5: b595dfaac339e26f8d081fbb3241c77d
+      size: 11788

@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 import yaml
 
-from anomaly_inspector.pipelines import optimize_patchcore
+from anomaly_inspector.pipelines import optimize_patchcore, reference_patchcore
 from anomaly_inspector.pipelines.evaluate_patchcore import Outputs
 from anomaly_inspector.pipelines.export_patchcore import onnx_path, report_path
 from anomaly_inspector.pipelines.train_patchcore import model_path
@@ -97,9 +97,16 @@ def test_the_stage_outputs_are_where_the_code_writes() -> None:
     assert paths(optimize["metrics"]) == {str(optimize_patchcore.report_path(CATEGORY))}
     assert {str(onnx_path(CATEGORY)), str(report_path(CATEGORY))} <= paths(optimize["deps"])
 
+    reference = definition(STAGES["reference_patchcore"])
+    assert paths(reference["outs"]) == {str(reference_patchcore.reference_path(CATEGORY))}
+    # It scores the file export wrote, the one the API serves.
+    assert reference_patchcore.onnx_path(CATEGORY) == onnx_path(CATEGORY)
+    assert str(onnx_path(CATEGORY)) in paths(reference["deps"])
+
 
 def test_every_category_gets_its_stages() -> None:
     params = yaml.safe_load((REPO / "params.yaml").read_text())
-    for name in ("train_patchcore", "evaluate_patchcore", "export_patchcore", "optimize_patchcore"):
+    stages = ("train", "evaluate", "export", "optimize", "reference")
+    for name in (f"{stage}_patchcore" for stage in stages):
         assert STAGES[name]["foreach"] == "${data.categories}"
     assert params["data"]["categories"] == ["bottle", "carpet", "screw"]
