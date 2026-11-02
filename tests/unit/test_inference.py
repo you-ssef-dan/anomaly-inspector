@@ -86,6 +86,14 @@ def test_a_model_without_metadata_is_refused_at_startup(tiny: tuple[PatchCore, P
         Inspector(tiny[1])
 
 
+@pytest.mark.parametrize("threshold", ["0", "-1.5", "nan", "inf"])
+def test_a_threshold_that_is_not_positive_is_refused_at_startup(
+    tiny: tuple[PatchCore, Path], tmp_path: Path, threshold: str
+) -> None:
+    with pytest.raises(ValueError, match=r"threshold .* is not positive"):
+        Inspector(with_metadata(tiny, tmp_path, threshold=threshold))
+
+
 def test_serving_never_loads_torch() -> None:
     # The API image has no PyTorch: one stray import would crash it at startup.
     code = (

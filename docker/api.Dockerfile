@@ -39,7 +39,8 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app ${MODEL_FILE} /app/model/model.onnx
 # 1 worker x 2 ONNX Runtime threads, for 2 CPUs and 1 GB. Measured under load in this container:
 # as fast as 2 workers x 1 thread (5.4 photos/s), but a peak of 690 MB instead of 1021 MB, since
-# each worker holds its own copy of the model. Both can be changed at `docker run -e`.
+# each worker holds its own copy of the model. Both can be changed at `docker run -e`, but keep
+# one worker for /metrics: each worker counts only its own requests, and a scrape reaches one.
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 \
     API_MODEL_PATH=/app/model/model.onnx API_THREADS=2 UVICORN_WORKERS=1 API_BUILD=${BUILD}
 USER app

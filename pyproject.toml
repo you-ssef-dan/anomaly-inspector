@@ -38,6 +38,7 @@ train = [
 serve = [
     "fastapi>=0.159.1",
     "onnxruntime>=1.31.0",
+    "prometheus-client>=0.26.0",
     "prometheus-fastapi-instrumentator>=8.1.0",
     "python-multipart>=0.0.32",
     "uvicorn[standard]>=0.54.0",

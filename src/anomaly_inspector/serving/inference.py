@@ -5,6 +5,7 @@ needs (threshold, image size, category, version) is read from the ONNX file's me
 by the export stage, so nothing here is hard-coded.
 """
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +42,10 @@ class Inspector:
         if missing:  # fail at startup, not at the first request
             raise ValueError(f"{model_path} lacks metadata {missing}: export it with the pipeline")
         self.threshold = float(metadata["threshold"])
+        # Scores are distances, never negative: a threshold of 0 or less rejects every part, and
+        # /metrics divides by it. NaN and infinity fail this test too.
+        if not 0 < self.threshold < math.inf:
+            raise ValueError(f"{model_path}: threshold {metadata['threshold']!r} is not positive")
         self.image_size = int(metadata["image_size"])
         self.category = metadata["category"]
         self.version = metadata["git_sha"]
