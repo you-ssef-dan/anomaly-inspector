@@ -67,3 +67,13 @@ jobs:
         with:
           persist-credentials: false
       - run: make test-dags
+  # Prometheus's config and alert rules load, and the rules fire when they should and only then:
+  # their tests feed them made-up series (monitoring/prometheus/alerts.test.yml).
+  alert-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make test-alerts

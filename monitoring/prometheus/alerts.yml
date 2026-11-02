@@ -1,0 +1,32 @@
+# Two alerts, each on a rate over a window and never on one photo, or they would ring all day.
+# Prometheus checks them every minute; they show on its Alerts page, in Grafana (Alerting) and on
+# the dashboard. Sending them out by mail or chat would need Alertmanager, left out here.
+# Tested by alerts.test.yml: make test-alerts.
+groups:
+  - name: inspection
+    rules:
+      # The simulated line sends about 10% defects (simulate_line.py --defect-rate). Twice that over
+      # 30 minutes means the line or the model has changed: new lighting, a dirty lens, other
+      # parts, a broken model. At least 20 photos: a few broken bottles tried by hand are no drift.
+      - alert: FlaggedRateHigh
+        expr: |
+          sum by (category) (rate(inspection_decisions_total{job="api",result="defect"}[30m]))
+            / sum by (category) (rate(inspection_decisions_total{job="api"}[30m])) > 0.2
+          and sum by (category) (increase(inspection_decisions_total{job="api"}[30m])) >= 20
+        for: 5m
+        annotations:
+          summary: "{{ $labels.category }}: {{ $value | humanizePercentage }} of photos flagged over 30 minutes"
+          description: "About 10% is normal. Look at the score heatmap, then at the light and the camera."
+
+      # p95 of /v1/predict is 0.2 to 0.5 s in the 2-CPU container on this laptop, heatmap or not.
+      # Above 1 s for 10 minutes, the API is short of CPU or the model got slower. 1 s is a bucket
+      # bound of the API's latency histogram, so "above 1 s" is exact, not interpolated.
+      - alert: PredictLatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le) (
+            rate(http_request_duration_seconds_bucket{job="api",handler="/v1/predict"}[5m])
+          )) > 1
+        for: 10m
+        annotations:
+          summary: "p95 latency of /v1/predict: {{ $value | humanizeDuration }}"
+          description: "Normally 0.2 to 0.5 s. Check the API's CPU and memory, and the model version."

@@ -424,9 +424,9 @@ nothing: a release does, when I decide that `main` is worth shipping.
 
 ```mermaid
 flowchart LR
-  pr([Pull request]) --> ci["ci<br/>checks, docker, airflow-dags"]
+  pr([Pull request]) --> ci["ci<br/>checks, docker,<br/>airflow-dags, alert-rules"]
   pr --> mci["model-ci<br/>pipeline + quality gate"]
-  ci --> merge{"merge to main<br/>4 required checks"}
+  ci --> merge{"merge to main<br/>5 required checks"}
   mci --> merge
   merge -.->|when I choose| release(["release v0.2.0"])
   release --> image["cd: image<br/>real model, smoke test,<br/>push 0.2.0 to GHCR"]
@@ -436,9 +436,10 @@ flowchart LR
 
 | Workflow | Runs on | What it does | Time |
 | --- | --- | --- | --- |
-| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 354 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 356 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
+| [`ci`](.github/workflows/ci.yml), job `alert-rules` | same | Prometheus's config and alert rules load, and the rules' tests pass | seconds, plus pulling Prometheus's image |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |
 | [`cd`](.github/workflows/cd.yml) | a published release (`v*`), or by hand on one | builds with the real model, tests and pushes the image; after approval, deploys it and tests the live URL | about 2 min, plus the approval |
 
@@ -467,6 +468,11 @@ laptop it started 14 workers and ran out of memory.
 
 **`airflow-dags`** runs [the DAG tests](#tests-for-the-dags) in Airflow's own image, where
 the DAGs run (`make test-dags`).
+
+**`alert-rules`** runs Prometheus's own checker on its config and
+[alert rules](monitoring/prometheus/alerts.yml), then the rules'
+[tests](monitoring/prometheus/alerts.test.yml): made-up series go in, and each alert must fire
+when it should and only then (`make test-alerts`).
 
 **`pipeline`** checks the models, with the data and models from the DVC remote on
 [DagsHub](https://dagshub.com) (private, because of the MVTec license):
@@ -577,7 +583,7 @@ went live this way: `image` took 42 s and `deploy` 51 s, 40 s of it waiting for 
 
 ### `main` is protected
 
-- A pull request merges only when `checks`, `docker`, `airflow-dags` and `pipeline` are green
+- A pull request merges only when `checks`, `docker`, `airflow-dags`, `alert-rules` and `pipeline` are green
   **and** its branch is up to date with `main`, so the checks ran on exactly what will be merged. When `main` moved in
   the meantime, `gh pr update-branch <number> --rebase` updates it and the checks run again.
 - Pull requests are squash-merged: one commit on `main` per change.
@@ -687,7 +693,7 @@ uvx --from actionlint-py actionlint
 4. **GHCR:** the package was first pushed from the laptop, so Actions could not push to it
    (`permission_denied: write_package`): *Package settings* → *Manage Actions access* → add the
    repository with the *Write* role.
-5. **Branch protection** on `main`: required checks `checks`, `docker`, `airflow-dags`, `pipeline`, and
+5. **Branch protection** on `main`: required checks `checks`, `docker`, `airflow-dags`, `alert-rules`, `pipeline`, and
    *Require branches to be up to date before merging*.
 6. **Dependabot:** *Settings* → *Advanced Security* → enable *Dependabot alerts* and *Dependabot
    security updates*. Version updates start on their own once `dependabot.yml` is on `main`.
@@ -1001,6 +1007,7 @@ installed as the CPU build, so there is no GPU or CUDA download.
 | `make api-up` / `make api-down` | Start or stop the API in Docker, with 2 CPUs and 1 GB: http://localhost:8000/docs |
 | `make smoke` | Smoke test of the running API: ready, a good part passes, a defective one is rejected |
 | `make monitoring-up` / `make monitoring-down` | Start the API with Prometheus (http://localhost:9090) and Grafana (http://localhost:3000, no login to view), or stop the two |
+| `make test-alerts` | Prometheus's checker on its config and alert rules, then the rules' tests (needs Docker) |
 | `make test-dags` | The tests of the Airflow DAGs, in Airflow's own image (needs Docker) |
 | `make train-image` | Build the training image that the retraining DAG runs its steps in |
 | `make airflow-up` / `make airflow-down` | Start MLflow, the API and Airflow (http://localhost:8080), or stop Airflow ([setup](#retraining-and-batch-inspection-with-airflow)) |
@@ -1041,7 +1048,8 @@ scripts/             training with MLflow logging, the three-model benchmark, ex
 docker/              the API, training and MLflow images (docker-compose.yml runs MLflow, the API,
                      Prometheus and Grafana)
 airflow/             Airflow 3 in Docker Compose, and the retrain_patchcore and batch_inspection DAGs
-monitoring/          what Prometheus scrapes, and Grafana's data source and dashboards as code
+monitoring/          what Prometheus scrapes, the alert rules and their tests, and Grafana's data
+                     source and dashboard as code
 .github/             the ci, model-ci and cd workflows, and the Dependabot settings
 tests/               unit and API tests on generated fake data, slow tests, a Locust load test
 notebooks/           exploratory data analysis (no outputs stored in git)
@@ -1068,7 +1076,8 @@ dvc.yaml             the pipeline, from raw images to a model and its reports pe
   and secrets, and CI on every pull request. `main` is protected: changes arrive through up-to-date
   pull requests that pass `checks` (lint, types, tests), `docker` (the image builds, answers its
   smoke test and has no fixable high or critical vulnerability), `airflow-dags` (the DAGs import
-  and work) and `pipeline` (the models still pass the quality gate). A deploy is a release, and needs a human approval. See [CI/CD](#cicd).
+  and work), `alert-rules` (the alerts fire when they should) and `pipeline` (the models still
+  pass the quality gate). A deploy is a release, and needs a human approval. See [CI/CD](#cicd).
 - **Careful with the supply chain.** Actions pinned to commit SHAs, least-privilege tokens,
   Dependabot with a 7-day cooldown, and an image scan on every pull request.
 - **Automation proposes, people decide.** Airflow retrains only on photos people confirmed, never

@@ -1,21 +1,29 @@
 {
   "uid": "anomaly-inspector",
   "title": "Anomaly Inspector",
-  "description": "The inspection API as Prometheus sees it: traffic and the model's decisions.",
+  "description": "The inspection API as Prometheus sees it: service health, then model health.",
   "tags": ["anomaly-inspector"],
   "schemaVersion": 42,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "graphTooltip": 1,
-  "time": {"from": "now-1h", "to": "now"},
+  "time": {"from": "now-3h", "to": "now"},
   "refresh": "30s",
   "panels": [
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Service: is the API answering, and fast?",
+      "collapsed": false,
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1},
+      "panels": []
+    },
     {
       "id": 1,
       "type": "stat",
       "title": "API up",
       "description": "Whether Prometheus's last read of the API's /metrics worked.",
-      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 8},
+      "gridPos": {"x": 0, "y": 1, "w": 4, "h": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
@@ -49,11 +57,47 @@
       }
     },
     {
+      "id": 4,
+      "type": "stat",
+      "title": "Alerts firing",
+      "description": "The rules in monitoring/prometheus/alerts.yml that fire now. All of them, firing or not: Alerting in the menu, or Prometheus's Alerts page.",
+      "gridPos": {"x": 0, "y": 5, "w": 4, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (alertname) (ALERTS{alertstate=\"firing\"})",
+          "legendFormat": "{{alertname}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]
+          },
+          "noValue": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "center"
+      }
+    },
+    {
       "id": 2,
       "type": "timeseries",
       "title": "Requests per second, by endpoint",
       "description": "Health checks and /metrics itself are not counted.",
-      "gridPos": {"x": 4, "y": 0, "w": 10, "h": 8},
+      "gridPos": {"x": 4, "y": 1, "w": 7, "h": 8},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
@@ -70,11 +114,105 @@
       }
     },
     {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Latency of /v1/predict",
+      "description": "Over 5 minutes, like the PredictLatencyHigh alert: the red line is its limit, and p95 must stay above it for 10 minutes.",
+      "gridPos": {"x": 11, "y": 1, "w": 7, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"api\",handler=\"/v1/predict\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"api\",handler=\"/v1/predict\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {"axisSoftMax": 1.2, "thresholdsStyle": {"mode": "dashed"}},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "transparent", "value": null}, {"color": "red", "value": 1}]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "p50"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "p95"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Errors, share of requests",
+      "description": "Over 5 minutes. 5xx: the API failed. 4xx: it refused the request, such as a file that is not an image.",
+      "gridPos": {"x": 18, "y": 1, "w": 6, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "(sum(rate(http_requests_total{job=\"api\",status=\"5xx\"}[5m])) or vector(0)) / sum(rate(http_requests_total{job=\"api\"}[5m]))",
+          "legendFormat": "failed (5xx)"
+        },
+        {
+          "refId": "B",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "(sum(rate(http_requests_total{job=\"api\",status=\"4xx\"}[5m])) or vector(0)) / sum(rate(http_requests_total{job=\"api\"}[5m]))",
+          "legendFormat": "refused (4xx)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percentunit", "min": 0, "custom": {"axisSoftMax": 0.1}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "failed (5xx)"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "refused (4xx)"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Model: is the line still the same?",
+      "collapsed": false,
+      "gridPos": {"x": 0, "y": 9, "w": 24, "h": 1},
+      "panels": []
+    },
+    {
       "id": 3,
       "type": "timeseries",
       "title": "Photos per minute, by decision",
       "description": "One decision per photo, from /v1/predict and /v1/predict/batch.",
-      "gridPos": {"x": 14, "y": 0, "w": 10, "h": 8},
+      "gridPos": {"x": 0, "y": 10, "w": 8, "h": 9},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
@@ -100,6 +238,76 @@
       "options": {
         "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
         "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Share of photos flagged, over 30 minutes",
+      "description": "About 10% is normal on the simulated line. Above the red line (20%), with at least 20 photos, FlaggedRateHigh fires after 5 minutes.",
+      "gridPos": {"x": 8, "y": 10, "w": 8, "h": 9},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (category) (rate(inspection_decisions_total{job=\"api\",result=\"defect\"}[30m])) / sum by (category) (rate(inspection_decisions_total{job=\"api\"}[30m]))",
+          "legendFormat": "{{category}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {"mode": "fixed", "fixedColor": "orange"},
+          "custom": {"axisSoftMax": 0.3, "thresholdsStyle": {"mode": "dashed"}},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "transparent", "value": null}, {"color": "red", "value": 0.2}]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 8,
+      "type": "heatmap",
+      "title": "Score ÷ threshold, photos per 5 minutes",
+      "description": "Each column is 5 minutes of photos, each row a range of the score divided by the decision threshold: above 1, the photo is flagged. New light or a dirty lens moves the whole column, often before the share flagged changes.",
+      "gridPos": {"x": 16, "y": 10, "w": 8, "h": 9},
+      "interval": "5m",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "sum by (le) (increase(anomaly_score_ratio_bucket{job=\"api\"}[$__interval]))",
+          "legendFormat": "{{le}}",
+          "format": "heatmap"
+        }
+      ],
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Oranges",
+          "scale": "exponential",
+          "exponent": 0.5,
+          "steps": 64,
+          "reverse": false
+        },
+        "filterValues": {"le": 1e-9},
+        "legend": {"show": true},
+        "rowsFrame": {"layout": "auto"},
+        "showValue": "never",
+        "tooltip": {"mode": "single", "yHistogram": false, "showColorScale": false},
+        "yAxis": {"axisPlacement": "left", "axisLabel": "score ÷ threshold", "reverse": false}
       }
     }
   ]
