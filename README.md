@@ -223,6 +223,7 @@ loads it), and reads the threshold and image size from the model file.
 | POST | `/v1/predict` | One photo: anomaly score, decision and, with `?heatmap=true`, the heatmap |
 | POST | `/v1/predict/batch` | Up to 8 photos in one model call |
 | GET | `/` | A demo page: pick a photo, see the decision, the score against the threshold and the heatmap |
+| GET | `/metrics` | For Prometheus: requests, errors and latency per endpoint, decisions, and each score divided by the threshold |
 
 ```bash
 API_MODEL_PATH=models/patchcore/screw/model.onnx uv run uvicorn anomaly_inspector.serving.app:app
@@ -231,7 +232,7 @@ curl -F "file=@part.png;type=image/png" localhost:8000/v1/predict   # or open lo
 
 A photo that is not PNG or JPEG gets a 415, one above 5 MB a 413, one that cannot be decoded a
 422; each error names the file. The model loads once, at startup, and a model without its
-metadata stops the startup. The tests run the endpoints against a fake model, and end to end
+metadata, or with a threshold that is not a positive number, stops the startup. The tests run the endpoints against a fake model, and end to end
 against a small real one; slow tests check the real bottle model (a good part passes, a broken
 one is rejected, a black square pasted on a good part raises its score).
 
@@ -435,7 +436,7 @@ flowchart LR
 
 | Workflow | Runs on | What it does | Time |
 | --- | --- | --- | --- |
-| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 344 fast tests on 4 workers | 2 to 4 min |
+| [`ci`](.github/workflows/ci.yml), job `checks` | every pull request and push to `main` | ruff, ruff format, strict mypy, the 354 fast tests on 4 workers | 2 to 4 min |
 | [`ci`](.github/workflows/ci.yml), job `docker` | same | builds the API image with a tiny model, smoke test, no PyTorch, not root, Trivy scan | about 1 min |
 | [`ci`](.github/workflows/ci.yml), job `airflow-dags` | same | the tests of the two Airflow DAGs, in Airflow's own image | about 1 min |
 | [`model-ci`](.github/workflows/model-ci.yml), job `pipeline` | every pull request | re-runs the DVC stages the change affects, comments the metrics diff, runs the quality gate | seconds without an ML change, about 1 min when no model retrains, 16 min when all of them do |

@@ -318,6 +318,7 @@ bench = [
 serve = [
     { name = "fastapi" },
     { name = "onnxruntime" },
+    { name = "prometheus-client" },
     { name = "prometheus-fastapi-instrumentator" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
@@ -372,6 +373,7 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'train'", specifier = ">=3.1.0" },
     { name = "pandera", marker = "extra == 'train'", specifier = ">=0.34.1" },
     { name = "pillow", specifier = ">=13.0.0" },
+    { name = "prometheus-client", marker = "extra == 'serve'", specifier = ">=0.26.0" },
     { name = "prometheus-fastapi-instrumentator", marker = "extra == 'serve'", specifier = ">=8.1.0" },
     { name = "pyarrow", marker = "extra == 'train'", specifier = ">=25.0.1" },
     { name = "pydantic", specifier = ">=2.14.1" },

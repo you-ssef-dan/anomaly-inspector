@@ -33,6 +33,17 @@ done
 curl -fsS "$url/health/ready" > /dev/null || fail "$url is not ready after 60 s"
 echo "ok: $url is ready"
 
+# The predictions made below must show on /metrics, where Prometheus reads them. The page is saved
+# first: grep -q stops reading at its first match, and pipefail would count curl's broken pipe.
+check_metrics() {
+    local body
+    body=$(curl -fsS "$url/metrics") || fail "/metrics does not answer"
+    grep -q '^inspection_decisions_total{' <<< "$body" || fail "/metrics counts no decision"
+    grep -q '^http_requests_total{.*handler="/v1/predict"' <<< "$body" \
+        || fail "/metrics counts no request to /v1/predict"
+    echo "ok: /metrics counts the requests and the decisions"
+}
+
 if [ "$basic" = true ]; then
     work=$(mktemp -d)
     trap 'rm -rf "$work"' EXIT
@@ -72,6 +83,7 @@ print('ok: scored a photo', round(r['anomaly_score'], 3), 'with its heatmap')" \
     code=$(curl -s -o /dev/null -w '%{http_code}' -F "file=@$work/note.txt;type=text/plain" "$url/v1/predict")
     [ "$code" = 415 ] || fail "a text file got HTTP $code instead of 415"
     echo "ok: a text file is refused (415)"
+    check_metrics
     exit 0
 fi
 
@@ -85,3 +97,4 @@ decision() {
 echo "ok: good part passes ($good)"
 [ "$(decision "$defective")" = true ] || fail "a defective part passed: $defective"
 echo "ok: defective part rejected ($defective)"
+check_metrics

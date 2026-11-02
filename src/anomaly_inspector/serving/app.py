@@ -5,6 +5,9 @@
 The model is loaded once, when the app starts: if the file is missing or lacks its metadata, the
 app does not start at all. The endpoints that run the model are plain `def`, so FastAPI runs them
 in a thread pool and one slow image does not hold up the other requests.
+
+/metrics is for Prometheus: requests, errors and latency per endpoint, the decisions, and each
+score divided by the threshold. It counts in this process only, so the image runs one worker.
 """
 
 import io
@@ -17,6 +20,8 @@ from typing import Annotated, Protocol
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
+from prometheus_client import CollectorRegistry, Counter, Histogram
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from anomaly_inspector.serving.heatmap import heatmap_png_base64
 from anomaly_inspector.serving.inference import Inspector, Prediction
@@ -24,6 +29,15 @@ from anomaly_inspector.serving.schemas import BatchResponse, ModelInfo, PredictR
 from anomaly_inspector.serving.settings import Settings
 
 ALLOWED_TYPES = {"image/png", "image/jpeg"}
+# An image's score divided by the threshold: 1.0 is the decision line for every category and
+# model, so one set of buckets fits them all. New lighting or a dirty lens moves the whole
+# distribution, often before the share of rejected parts changes.
+SCORE_RATIO_BUCKETS = (0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0, 3.0)
+# Seconds per request. The library's default (0.1, 0.5, 1) is too coarse for a p95 alert on
+# requests that take 0.1 to 0.2 s here.
+LATENCY_BUCKETS = (0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0)
+# Docker, Render and Prometheus call these all day: counting them would drown the real traffic.
+NOT_COUNTED = ["/metrics", "/health/.*"]
 
 
 class Model(Protocol):
@@ -76,6 +90,25 @@ def create_app(
         lifespan=lifespan,
     )
 
+    # Each app counts in its own registry, so apps built side by side (tests) never mix counts.
+    registry = CollectorRegistry()
+    score_ratio = Histogram(
+        "anomaly_score_ratio",
+        "Image score divided by the decision threshold",
+        ["category"],
+        buckets=SCORE_RATIO_BUCKETS,
+        registry=registry,
+    )
+    decisions = Counter(
+        "inspection_decisions_total",
+        "Decisions, one per image: defect or ok",
+        ["category", "result"],
+        registry=registry,
+    )
+    Instrumentator(excluded_handlers=NOT_COUNTED, registry=registry).instrument(
+        app, latency_lowr_buckets=LATENCY_BUCKETS
+    ).expose(app, include_in_schema=False)
+
     def loaded_model(request: Request) -> Model:
         model: Model | None = getattr(request.app.state, "model", None)
         if model is None:
@@ -89,6 +122,10 @@ def create_app(
         start = time.perf_counter()
         predictions = model.predict_batch(images)
         latency_ms = 1000 * (time.perf_counter() - start)
+        for prediction in predictions:
+            score_ratio.labels(model.category).observe(prediction.score / model.threshold)
+            result = "defect" if prediction.is_anomalous else "ok"
+            decisions.labels(model.category, result).inc()
         return [
             PredictResponse(
                 filename=file.filename,
