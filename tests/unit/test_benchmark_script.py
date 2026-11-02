@@ -83,6 +83,18 @@ def test_a_second_run_replaces_its_own_entry_and_keeps_the_others(manifest_path:
     }
 
 
+def test_anomalib_twice_with_the_same_seed_gives_identical_numbers(manifest_path: Path) -> None:
+    # Its coreset sampler draws a random projection from numpy's global generator, which nothing
+    # else seeds: without the script seeding it, two identical runs scored screw 0.880 and 0.898.
+    # --coreset-ratio=0.5 on random weights is too tame to show it: it needs a real choice.
+    runs = []
+    for _ in range(3):
+        assert run_benchmark("--impl=anomalib-v1", "--coreset-ratio=0.1").returncode == 0
+        entry = json.loads(Path("results.json").read_text())["bottle/anomalib-v1-k9"]
+        runs.append({metric: entry[metric] for metric in METRICS})
+    assert runs[0] == runs[1] == runs[2]
+
+
 def test_an_unknown_implementation_is_refused(manifest_path: Path) -> None:
     result = run_benchmark("--impl=tensorflow")
     assert result.returncode != 0

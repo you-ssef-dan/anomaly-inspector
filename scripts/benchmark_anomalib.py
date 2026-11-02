@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 import mlflow
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
@@ -105,7 +106,11 @@ def run_anomalib(
     with torch.no_grad():
         for images, _ in train:
             model(images)
-    torch.manual_seed(seed)  # the coreset's random start, whatever the weights consumed before
+    # The coreset's random choices, whatever the weights consumed before: the first point comes
+    # from torch's generator, and the random projection that speeds up the search from numpy's
+    # global one (sklearn reads it when no random_state is given), which nothing else seeds.
+    torch.manual_seed(seed)
+    np.random.seed(seed)  # noqa: NPY002  (the global generator is the one anomalib reads)
     model.subsample_embedding(ratio)
     fit_seconds = time.perf_counter() - start
     model.eval()
@@ -126,7 +131,8 @@ def run_stfpm(
     train_images, val_images = stack_images(train), stack_images(val)
 
     def log_epoch(epoch: int, metrics: dict[str, float]) -> None:
-        print(f"epoch {epoch}: " + ", ".join(f"{k} {v:.4f}" for k, v in metrics.items()))
+        shown = ", ".join(f"{k} {v:.4f}" for k, v in metrics.items())
+        print(f"epoch {epoch}: {shown}", flush=True)  # live even when the output goes to a file
         if tracking_enabled():
             losses = {"train_loss": metrics["train_loss"], "val_loss": metrics["val_loss"]}
             mlflow.log_metrics(losses | {"epoch_seconds": metrics["seconds"]}, step=epoch)
@@ -183,6 +189,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--out", type=Path, default=Path("reports/anomalib_benchmark.json"))
     args = parser.parse_args(argv)
 
+    torch.manual_seed(args.seed)  # random weights (--no-pretrained) are drawn before any model
     stfpm = args.impl == "stfpm"
     backbone = args.backbone or ("resnet18" if stfpm else "wide_resnet50_2")
     manifest = pd.read_parquet(args.manifest)
