@@ -1141,6 +1141,45 @@ set, because the simulator kept sending confirmed photos to the line. Those had 
 23 pool photos no model trained on, once each, a KS p-value of 0.155. A real line never shows the
 same part twice, so the simulator no longer does either. Since then, a normal day raises no alert.
 
+### The lighting test
+
+The plan's test of all this: `simulate_line.py --darken 0.3` puts the line's photos 30% darker, as
+if a lamp had dimmed, and the question is how long the monitoring takes to notice.
+
+| Time (UTC, 2 November) | What happened |
+| --- | --- |
+| 22:31 to 22:46 | the normal line: 10 photos every 5 minutes, about 10% defects |
+| 22:51:28 | every photo 30% darker from then on (brightness 136 → 95) |
+| 23:00 | `batch_inspection` scores the first 20 of them: all flagged, at about 1.05 times the threshold |
+| 23:00:51 | `FlaggedRateHigh` pending: 37% of the photos flagged over 30 minutes |
+| 23:05:51 | `FlaggedRateHigh` firing: **14 minutes after the light changed** |
+| 23:07:57 | the laptop went to sleep, so the dim light lasted 16 minutes, not the plan's hour |
+
+![The dashboard during the test: at 23:00 the share flagged jumps from 5% to 37%, past the 20% line, the heatmap's column moves from 0.5-0.75 to just above 1, and FlaggedRateHigh fires](reports/figures/monitoring_lighting_test.png)
+
+- **14 minutes:** up to 10 waiting for the next `batch_inspection` run, then the alert's 5 minutes
+  of `for`. Scoring photos as they arrive, or a shorter `for`, would cut it.
+- **The daily drift check**, run by hand the next morning over the last 24 hours (240 photos, 40 of
+  them dim), failed its `check` task as it should, and its report says what moved: the light, which
+  the alert alone cannot tell.
+
+  | Signal | Reference | Last 24 hours | PSI | KS p-value | Drift |
+  | --- | ---: | ---: | ---: | ---: | --- |
+  | anomaly_score | 1.56 | 1.53 | 0.39 | 0.065 | no |
+  | brightness | 137 | 136 | 1.08 | 2.3e-05 | **yes** |
+  | contrast | 92.5 | 92.2 | 1.10 | 0.00029 | **yes** |
+  | sharpness | 34.5 | 31.7 | 0.89 | 0.00033 | **yes** |
+  | share flagged | 9.7% | 23.3% | | | **yes** |
+
+  The scores did not move, as designed: they are those of the photos the model passed, and it
+  passed none of the dim ones.
+- **A dim lamp rejects every good bottle** while it lasts. The fix is the lamp: retraining on those
+  photos would teach the model that dark bottles are normal.
+- **The test found a dashboard bug.** The heatmap counted each 5 minutes with `increase()` over
+  exactly 5 minutes, and `batch_inspection` scores right at those boundaries, so its photos fell
+  between two windows and the heatmap stayed empty. It now counts over Grafana's
+  `$__rate_interval`, 15 seconds more.
+
 ### Why not Evidently
 
 The plan suggested Evidently for the drift reports. Its latest version, 0.7.23, does not import

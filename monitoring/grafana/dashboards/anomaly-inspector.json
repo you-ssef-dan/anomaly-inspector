@@ -285,7 +285,7 @@
         {
           "refId": "A",
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "sum by (le) (increase(anomaly_score_ratio_bucket{job=\"api\"}[$__interval]))",
+          "expr": "sum by (le) (increase(anomaly_score_ratio_bucket{job=\"api\"}[$__rate_interval]))",
           "legendFormat": "{{le}}",
           "format": "heatmap"
         }
