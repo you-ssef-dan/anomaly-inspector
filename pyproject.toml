@@ -76,7 +76,7 @@ plugins = ["pydantic.mypy"]  # teaches mypy that Field(100, ...) is a default va
 untyped_calls_exclude = ["torch"]
 
 [[tool.mypy.overrides]]
-module = ["torchvision.*", "timm.*", "scipy.*", "sklearn.*", "mlflow.*", "onnxruntime.*"]
+module = ["torchvision.*", "timm.*", "scipy.*", "sklearn.*", "mlflow.*", "onnxruntime.*", "dvc.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

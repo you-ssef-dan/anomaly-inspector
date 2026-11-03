@@ -1,4 +1,4 @@
-"""The two Airflow DAGs: they import, keep their shape, and their Python tasks do what they say.
+"""The Airflow DAGs: they import, keep their shape, and their Python tasks do what they say.
 
 They run in Airflow's own image, not in the project's environment (Airflow pins many libraries
 the project does not use), with the repository mounted read-only:
@@ -58,13 +58,18 @@ def batch_task(dagbag: DagBag, task_id: str) -> Callable[..., Any]:
 
 def test_both_dags_import_without_errors(dagbag: DagBag) -> None:
     assert dagbag.import_errors == {}
-    assert set(dagbag.dags) == {"retrain_patchcore", "batch_inspection"}
+    assert set(dagbag.dags) == {"retrain_patchcore", "batch_inspection", "drift_report"}
 
 
 def test_schedules_and_one_run_at_a_time(dagbag: DagBag) -> None:
     retrain, batch = dagbag.dags["retrain_patchcore"], dagbag.dags["batch_inspection"]
-    assert (retrain.schedule, batch.schedule) == ("@weekly", "*/10 * * * *")
-    for dag in (retrain, batch):
+    drift = dagbag.dags["drift_report"]
+    assert (retrain.schedule, batch.schedule, drift.schedule) == (
+        "@weekly",
+        "*/10 * * * *",
+        "@daily",
+    )
+    for dag in (retrain, batch, drift):
         assert not dag.catchup
         assert dag.max_active_runs == 1  # two runs would share the clone, or score the same photos
 
@@ -109,6 +114,34 @@ def test_only_open_pull_request_gets_the_github_token(dagbag: DagBag) -> None:
         assert "AWS_SECRET_ACCESS_KEY" in hidden
         assert ("GH_TOKEN" in hidden) == (step.task_id == "open_pull_request")
         assert not {"GH_TOKEN", "AWS_SECRET_ACCESS_KEY"} & set(step.environment)
+
+
+def test_the_drift_check_runs_mains_code_in_the_training_image(dagbag: DagBag) -> None:
+    dag = dagbag.dags["drift_report"]
+    write = dag.get_task("write_report")
+    assert isinstance(write, DockerOperator)
+    assert write.image == "anomaly-inspector-train:latest"
+    assert write.downstream_task_ids == {"check"}
+    assert write.do_xcom_push  # its last line, the verdict, goes to check
+    assert dag.params["rev"] == "origin/main"
+    # The code of that commit, taken without a checkout: retraining may be using the clone.
+    assert 'git -C "$repo" archive "{{ params.rev }}" src' in write.command[-1]
+    assert (
+        "PYTHONPATH=/tmp/code/src python -m anomaly_inspector.pipelines.drift_report"
+        in (write.command[-1])
+    )
+    assert "AWS_SECRET_ACCESS_KEY" in write._private_environment
+    assert "AWS_SECRET_ACCESS_KEY" not in write.environment
+
+
+def test_the_drift_check_fails_only_when_the_verdict_lists_an_alert(dagbag: DagBag) -> None:
+    from airflow.sdk.exceptions import AirflowFailException
+
+    check = dagbag.dags["drift_report"].get_task("check").python_callable
+    check(json.dumps({"alerts": [], "report": "reports/drift/2026-11-03.md"}))
+    verdict = {"alerts": ["bottle: brightness"], "report": "reports/drift/2026-11-03.md"}
+    with pytest.raises(AirflowFailException, match=r"bottle: brightness\. See reports/drift"):
+        check(json.dumps(verdict))
 
 
 def test_new_photos_are_listed_in_chunks_and_partial_copies_wait(
